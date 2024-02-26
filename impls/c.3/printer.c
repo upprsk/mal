@@ -65,6 +65,9 @@ string_t pr_str(mal_value_t value, bool print_readably) {
             return value.as.string;
         case MAL_VEC: return pr_str_sequence(value, '[', ']', print_readably);
         case MAL_LIST: return pr_str_sequence(value, '(', ')', print_readably);
+        case MAL_ERR:
+            return (string_t){.items = "ERROR", .size = 5, .capacity = 5};
+            break;
     }
 
     return (string_t){0};

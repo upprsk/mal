@@ -82,11 +82,14 @@ static bool is_special(char c) {
     }
 }
 
-// Tokenize the given string into an array of tokens.
+// Tokenize the given string into an array of tokens. The number of errors is
+// returned in `err`. `err` may be null.
 //
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-static vartok_t tokenize(string_t s) {
+static vartok_t tokenize(string_t s, size_t* err) {
     vartok_t tokens = {0};
+
+    if (err != NULL) *err = 0;
 
     for (size_t i = 0; i < s.size;) {
         // - `[\s,]*`: Matches any number of whitespaces or commas. This is not
@@ -147,7 +150,9 @@ static vartok_t tokenize(string_t s) {
                 }
 
                 if (s.items[i] != '"') {
-                    fprintf(stderr, "Unterminated string\n");
+                    fprintf(stderr, "ERROR: unbalanced string: `%.*s`\n",
+                            (int)(i - start), &s.items[start]);
+                    if (err != NULL) *err += 1;
                 } else {
                     da_append(&tokens, (string_t){.items = &s.items[start],
                                                   .size = i - start + 1,
@@ -197,8 +202,8 @@ static mal_value_t read_atom(reader_t* r);
 // Read a value, using `read_form` or `read_list` depending on `(`
 static mal_value_t read_form(reader_t* r) {
     if (reader_at_end(r)) {
-        fprintf(stderr, "Unexpected EOF, expected form\n");
-        return (mal_value_t){.tag = MAL_NIL};
+        fprintf(stderr, "ERROR: unexpected EOF, expected form\n");
+        return (mal_value_t){.tag = MAL_ERR};
     }
 
     if (reader_peek(r).items[0] == '(') return read_list(r);
@@ -214,8 +219,8 @@ static mal_value_t read_sequence(reader_t* r, mal_value_tag_t tag, char endc) {
 
     while (true) {
         if (reader_at_end(r)) {
-            fprintf(stderr, "Unexpected EOF, expected `%c`\n", endc);
-            return (mal_value_t){.tag = MAL_NIL};
+            fprintf(stderr, "ERROR: unexpected EOF, expected `%c`\n", endc);
+            return (mal_value_t){.tag = MAL_ERR};
         }
 
         if (reader_peek(r).items[0] == endc) {
@@ -348,7 +353,9 @@ static mal_value_t read_atom(reader_t* r) {
 }
 
 mal_value_t read_str(string_t s) {
-    vartok_t tokens = tokenize(s);
+    size_t   err = 0;
+    vartok_t tokens = tokenize(s, &err);
+    if (err != 0) return (mal_value_t){.tag = MAL_ERR};
 
     reader_t    reader = {.tokens = tokens};
     mal_value_t value = read_form(&reader);
@@ -357,9 +364,9 @@ mal_value_t read_str(string_t s) {
 
     if (!reader_at_end(&reader)) {
         token_t tok = reader_peek(&reader);
-        fprintf(stderr, "Expected EOF, found `%.*s`\n", (int)tok.size,
+        fprintf(stderr, "ERROR: expected EOF, found `%.*s`\n", (int)tok.size,
                 tok.items);
-        return (mal_value_t){.tag = MAL_NIL};
+        return (mal_value_t){.tag = MAL_ERR};
     }
 
     return value;

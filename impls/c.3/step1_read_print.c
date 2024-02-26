@@ -15,7 +15,12 @@ mal_value_t mal_read(string_t s) { return read_str(s); }
 mal_value_t mal_eval(mal_value_t value) { return value; }
 string_t    mal_print(mal_value_t value) { return pr_str(value, true); }
 
-string_t mal_rep(string_t s) { return mal_print(mal_eval(mal_read(s))); }
+string_t mal_rep(string_t s) {
+    mal_value_t val = mal_eval(mal_read(s));
+    if (val.tag == MAL_ERR) return (string_t){0};
+
+    return mal_print(val);
+}
 
 int actual_main(void) {
     while (true) {
@@ -29,7 +34,7 @@ int actual_main(void) {
         string_t line = da_init_fixed(buf, n - 1);
 
         string_t result = mal_rep(line);
-        printf("%.*s\n", (int)result.size, result.items);
+        if (result.size > 0) printf("%.*s\n", (int)result.size, result.items);
     }
 
     return 0;

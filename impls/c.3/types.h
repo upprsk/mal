@@ -12,6 +12,7 @@ typedef struct mal_value_list mal_value_list_t;
 /// use. Some values do not map to any value in the union (like `nil`, `true`
 /// and `false`).
 typedef enum __attribute__((packed)) mal_value_tag {
+    MAL_ERR,      // no storage
     MAL_NIL,      // no storage
     MAL_TRUE,     // no storage
     MAL_FALSE,    // no storage
