@@ -1,6 +1,69 @@
 #include "types.h"
 
+#include <assert.h>
+
+#include "common.h"
+#include "da.h"
 #include "tgc.h"
+
+string_t string_escape(string_t s) {
+    string_t out = {0};
+
+    for (size_t i = 0; i < s.size; i++) {
+        if (s.items[i] == '\\') {
+            i++;
+
+            switch (s.items[i]) {
+                case 'n': da_append(&out, '\n'); break;
+                case 't': da_append(&out, '\t'); break;
+                case 'r': da_append(&out, '\r'); break;
+                case '"': da_append(&out, '"'); break;
+                default: da_append(&out, s.items[i]); break;
+            }
+        } else {
+            da_append(&out, s.items[i]);
+        }
+    }
+
+    return out;
+}
+
+string_t string_unescape(string_t s) {
+    string_t out = {0};
+    da_append(&out, '"');
+
+    for (size_t i = 0; i < s.size; i++) {
+        switch (s.items[i]) {
+            case '\n':
+                da_append(&out, '\\');
+                da_append(&out, 'n');
+                break;
+            case '\t':
+                da_append(&out, '\\');
+                da_append(&out, 't');
+                break;
+            case '\r':
+                da_append(&out, '\\');
+                da_append(&out, 'r');
+                break;
+            case '"':
+                da_append(&out, '\\');
+                da_append(&out, '"');
+                break;
+            case '\\':
+                da_append(&out, '\\');
+                da_append(&out, '\\');
+                break;
+            default: da_append(&out, s.items[i]);
+        }
+    }
+
+    da_append(&out, '"');
+
+    return out;
+}
+
+// =============================================================================
 
 mal_value_list_t* list_prepend(mal_value_list_t* l, mal_value_t value) {
     mal_value_list_t* new_node = tgc_alloc(&gc, sizeof(mal_value_list_t));

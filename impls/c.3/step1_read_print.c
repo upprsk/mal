@@ -13,7 +13,7 @@
 
 mal_value_t mal_read(string_t s) { return read_str(s); }
 mal_value_t mal_eval(mal_value_t value) { return value; }
-string_t    mal_print(mal_value_t value) { return pr_str(value); }
+string_t    mal_print(mal_value_t value) { return pr_str(value, true); }
 
 string_t mal_rep(string_t s) { return mal_print(mal_eval(mal_read(s))); }
 

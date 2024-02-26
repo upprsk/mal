@@ -64,7 +64,8 @@ static bool is_whitespace(char c) {
 /// If the given character is considered special
 static bool is_special(char c) {
     switch (c) {
-        case ',':  // special
+        case ',':  // very special
+        case ';':  // very special
 
         case '[':
         case ']':
@@ -104,6 +105,7 @@ static vartok_t tokenize(string_t s) {
                     da_append(&tokens, (string_t){.items = &s.items[i],
                                                   .size = 2,
                                                   .capacity = 2});
+                    i++;
                 } else {
                     da_append(&tokens, (string_t){.items = &s.items[i],
                                                   .size = 1,
@@ -151,6 +153,8 @@ static vartok_t tokenize(string_t s) {
                                                   .size = i - start + 1,
                                                   .capacity = i - start + 1});
                 }
+
+                i++;
             } break;
 
             // `;.*`: Captures any sequence of characters starting with `;`
@@ -185,6 +189,7 @@ static vartok_t tokenize(string_t s) {
 
 static mal_value_t read_form(reader_t* r);
 static mal_value_t read_list(reader_t* r);
+static mal_value_t read_vector(reader_t* r);
 static mal_value_t read_atom(reader_t* r);
 
 // -----------------------------------------------------------------------------
@@ -197,21 +202,23 @@ static mal_value_t read_form(reader_t* r) {
     }
 
     if (reader_peek(r).items[0] == '(') return read_list(r);
+    if (reader_peek(r).items[0] == '[') return read_vector(r);
     return read_atom(r);
 }
 
-// Read a list in between a pair of `(` and `)`.
-static mal_value_t read_list(reader_t* r) {
+// Read a list in between a pair given characters
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+static mal_value_t read_sequence(reader_t* r, mal_value_tag_t tag, char endc) {
     reader_next(r);
-    mal_value_t value = {.tag = MAL_LIST};
+    mal_value_t value = {.tag = tag};
 
     while (true) {
         if (reader_at_end(r)) {
-            fprintf(stderr, "Unexpected EOF, expected `)`\n");
+            fprintf(stderr, "Unexpected EOF, expected `%c`\n", endc);
             return (mal_value_t){.tag = MAL_NIL};
         }
 
-        if (reader_peek(r).items[0] == ')') {
+        if (reader_peek(r).items[0] == endc) {
             reader_next(r);
             return value;
         }
@@ -219,6 +226,16 @@ static mal_value_t read_list(reader_t* r) {
         mal_value_t child = read_form(r);
         value.as.list = list_append(value.as.list, child);
     }
+}
+
+// Read a list in between a pair of `(` and `)`.
+static mal_value_t read_list(reader_t* r) {
+    return read_sequence(r, MAL_LIST, ')');
+}
+
+// Read a list in between a pair of `[` and `]`.
+static mal_value_t read_vector(reader_t* r) {
+    return read_sequence(r, MAL_VEC, ']');
 }
 
 static mal_value_t read_atom(reader_t* r) {
@@ -234,17 +251,95 @@ static mal_value_t read_atom(reader_t* r) {
         case '6':
         case '7':
         case '8':
-        case '9': {
+        case '9':
             return (mal_value_t){.tag = MAL_NUM,
                                  .as.num = strtod(tok.items, NULL)};
-        }
+        case '@': {
+            mal_value_list_t* lst = NULL;
+            lst = list_append(
+                lst,
+                (mal_value_t){
+                    .tag = MAL_SYMBOL,
+                    .as.string = {.items = "deref", .size = 5, .capacity = 5}
+            });
+            lst = list_append(lst, read_form(r));
+
+            return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
+        } break;
+        case '~': {
+            if (tok.size == 2 && tok.items[1] == '@') {
+                mal_value_list_t* lst = NULL;
+                lst = list_append(lst,
+                                  (mal_value_t){
+                                      .tag = MAL_SYMBOL,
+                                      .as.string = {.items = "splice-unquote",
+                                                    .size = 14,
+                                                    .capacity = 14}
+                });
+                lst = list_append(lst, read_form(r));
+
+                return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
+            }
+
+            mal_value_list_t* lst = NULL;
+            lst = list_append(
+                lst, (mal_value_t){
+                         .tag = MAL_SYMBOL,
+                         .as.string = {
+                                       .items = "unquote", .size = 7, .capacity = 7}
+            });
+            lst = list_append(lst, read_form(r));
+
+            return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
+        } break;
+        case '`': {
+            mal_value_list_t* lst = NULL;
+            lst = list_append(lst, (mal_value_t){
+                                       .tag = MAL_SYMBOL,
+                                       .as.string = {.items = "quasiquote",
+                                                     .size = 10,
+                                                     .capacity = 10}
+            });
+            lst = list_append(lst, read_form(r));
+
+            return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
+        } break;
+        case '\'': {
+            mal_value_list_t* lst = NULL;
+            lst = list_append(
+                lst,
+                (mal_value_t){
+                    .tag = MAL_SYMBOL,
+                    .as.string = {.items = "quote", .size = 5, .capacity = 5}
+            });
+            lst = list_append(lst, read_form(r));
+
+            return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
+        } break;
         default: {
+            // check for `nil`
+            if (tok.size == 3 && memcmp(tok.items, "nil", tok.size) == 0) {
+                return (mal_value_t){.tag = MAL_NIL};
+            }
+
+            // check for `true`
+            if (tok.size == 4 && memcmp(tok.items, "true", tok.size) == 0) {
+                return (mal_value_t){.tag = MAL_TRUE};
+            }
+
+            // check for `false`
+            if (tok.size == 5 && memcmp(tok.items, "false", tok.size) == 0) {
+                return (mal_value_t){.tag = MAL_FALSE};
+            }
+
+            // symbol
             char* symbol = tgc_calloc(&gc, tok.size, sizeof(char));
             memcpy(symbol, tok.items, tok.size);
 
+            mal_value_tag_t tag = symbol[0] == ':' ? MAL_KEYWORD : MAL_SYMBOL;
             return (mal_value_t){
-                .tag = MAL_SYMBOL,
-                .as.symbol = {.items = symbol,
+                .tag = tag,
+                .as.string = {.items = symbol,
                               .size = tok.size,
                               .capacity = tok.capacity}
             };

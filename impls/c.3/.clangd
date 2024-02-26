@@ -16,6 +16,7 @@ Diagnostics:
       - 'cppcoreguidelines-*'
       - 'cert-err33-c'
       - 'altera-*'
+      - 'misc-no-recursion'
     CheckOptions:
-      readability-function-cognitive-complexity.Threshold: 45
+      readability-function-cognitive-complexity.Threshold: 60
 
