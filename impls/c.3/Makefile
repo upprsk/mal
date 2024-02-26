@@ -11,7 +11,7 @@ S0_SRC = step0_repl.c $(LIBS_SRC)
 S0 = step0_repl
 
 S1_HEADERS = reader.h printer.h types.h da.h da_config.h common.h $(LIBS_HEADERS)
-S1_SRC = step1_read_print.c reader.c printer.c types.c $(LIBS_SRC)
+S1_SRC = step1_read_print.c reader.c printer.c types.c common.c $(LIBS_SRC)
 S1 = step1_read_print
 
 all: $(S0) $(S1)

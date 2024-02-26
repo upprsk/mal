@@ -263,10 +263,8 @@ static mal_value_t read_atom(reader_t* r) {
             mal_value_list_t* lst = NULL;
             lst = list_append(
                 lst,
-                (mal_value_t){
-                    .tag = MAL_SYMBOL,
-                    .as.string = {.items = "deref", .size = 5, .capacity = 5}
-            });
+                (mal_value_t){.tag = MAL_SYMBOL,
+                              .as.string = string_init_with_cstr("deref")});
             lst = list_append(lst, read_form(r));
 
             return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
@@ -274,13 +272,10 @@ static mal_value_t read_atom(reader_t* r) {
         case '~': {
             if (tok.size == 2 && tok.items[1] == '@') {
                 mal_value_list_t* lst = NULL;
-                lst = list_append(lst,
-                                  (mal_value_t){
-                                      .tag = MAL_SYMBOL,
-                                      .as.string = {.items = "splice-unquote",
-                                                    .size = 14,
-                                                    .capacity = 14}
-                });
+                lst = list_append(
+                    lst, (mal_value_t){.tag = MAL_SYMBOL,
+                                       .as.string = string_init_with_cstr(
+                                           "splice-unquote")});
                 lst = list_append(lst, read_form(r));
 
                 return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
@@ -288,23 +283,19 @@ static mal_value_t read_atom(reader_t* r) {
 
             mal_value_list_t* lst = NULL;
             lst = list_append(
-                lst, (mal_value_t){
-                         .tag = MAL_SYMBOL,
-                         .as.string = {
-                                       .items = "unquote", .size = 7, .capacity = 7}
-            });
+                lst,
+                (mal_value_t){.tag = MAL_SYMBOL,
+                              .as.string = string_init_with_cstr("unquote")});
             lst = list_append(lst, read_form(r));
 
             return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
         } break;
         case '`': {
             mal_value_list_t* lst = NULL;
-            lst = list_append(lst, (mal_value_t){
-                                       .tag = MAL_SYMBOL,
-                                       .as.string = {.items = "quasiquote",
-                                                     .size = 10,
-                                                     .capacity = 10}
-            });
+            lst = list_append(
+                lst, (mal_value_t){
+                         .tag = MAL_SYMBOL,
+                         .as.string = string_init_with_cstr("quasiquote")});
             lst = list_append(lst, read_form(r));
 
             return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
@@ -313,10 +304,8 @@ static mal_value_t read_atom(reader_t* r) {
             mal_value_list_t* lst = NULL;
             lst = list_append(
                 lst,
-                (mal_value_t){
-                    .tag = MAL_SYMBOL,
-                    .as.string = {.items = "quote", .size = 5, .capacity = 5}
-            });
+                (mal_value_t){.tag = MAL_SYMBOL,
+                              .as.string = string_init_with_cstr("quote")});
             lst = list_append(lst, read_form(r));
 
             return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
@@ -337,17 +326,13 @@ static mal_value_t read_atom(reader_t* r) {
                 return (mal_value_t){.tag = MAL_FALSE};
             }
 
-            // symbol
+            // symbol or keyword
             char* symbol = tgc_calloc(&gc, tok.size, sizeof(char));
             memcpy(symbol, tok.items, tok.size);
 
             mal_value_tag_t tag = symbol[0] == ':' ? MAL_KEYWORD : MAL_SYMBOL;
             return (mal_value_t){
-                .tag = tag,
-                .as.string = {.items = symbol,
-                              .size = tok.size,
-                              .capacity = tok.capacity}
-            };
+                .tag = tag, .as.string = string_init_with(symbol, tok.size)};
         }
     }
 }
