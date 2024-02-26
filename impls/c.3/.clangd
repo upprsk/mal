@@ -1,0 +1,21 @@
+CompileFlags:
+  Add: [ "-std=c11", "-xc" ]
+Diagnostics:
+  # UnusedIncludes: Strict
+  Suppress:
+    - builtin_definition
+    - unused-includes
+  ClangTidy:
+    Add: '*'
+    Remove:
+      - 'hicpp-*'
+      - 'llvmlibc-*'
+      - 'readability-identifier-length'
+      - 'readability-magic-numbers'
+      - 'readability-braces-around-statements'
+      - 'cppcoreguidelines-*'
+      - 'cert-err33-c'
+      - 'altera-*'
+    CheckOptions:
+      readability-function-cognitive-complexity.Threshold: 45
+
