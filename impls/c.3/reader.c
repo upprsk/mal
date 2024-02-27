@@ -264,7 +264,7 @@ static mal_value_t read_atom(reader_t* r) {
             lst = list_append(
                 lst,
                 (mal_value_t){.tag = MAL_SYMBOL,
-                              .as.string = string_init_with_cstr("deref")});
+                              .as.string = mal_string_new_from_cstr("deref")});
             lst = list_append(lst, read_form(r));
 
             return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
@@ -274,7 +274,7 @@ static mal_value_t read_atom(reader_t* r) {
                 mal_value_list_t* lst = NULL;
                 lst = list_append(
                     lst, (mal_value_t){.tag = MAL_SYMBOL,
-                                       .as.string = string_init_with_cstr(
+                                       .as.string = mal_string_new_from_cstr(
                                            "splice-unquote")});
                 lst = list_append(lst, read_form(r));
 
@@ -283,9 +283,9 @@ static mal_value_t read_atom(reader_t* r) {
 
             mal_value_list_t* lst = NULL;
             lst = list_append(
-                lst,
-                (mal_value_t){.tag = MAL_SYMBOL,
-                              .as.string = string_init_with_cstr("unquote")});
+                lst, (mal_value_t){
+                         .tag = MAL_SYMBOL,
+                         .as.string = mal_string_new_from_cstr("unquote")});
             lst = list_append(lst, read_form(r));
 
             return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
@@ -295,7 +295,7 @@ static mal_value_t read_atom(reader_t* r) {
             lst = list_append(
                 lst, (mal_value_t){
                          .tag = MAL_SYMBOL,
-                         .as.string = string_init_with_cstr("quasiquote")});
+                         .as.string = mal_string_new_from_cstr("quasiquote")});
             lst = list_append(lst, read_form(r));
 
             return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
@@ -305,7 +305,7 @@ static mal_value_t read_atom(reader_t* r) {
             lst = list_append(
                 lst,
                 (mal_value_t){.tag = MAL_SYMBOL,
-                              .as.string = string_init_with_cstr("quote")});
+                              .as.string = mal_string_new_from_cstr("quote")});
             lst = list_append(lst, read_form(r));
 
             return (mal_value_t){.tag = MAL_LIST, .as.list = lst};
@@ -331,8 +331,8 @@ static mal_value_t read_atom(reader_t* r) {
             memcpy(symbol, tok.items, tok.size);
 
             mal_value_tag_t tag = symbol[0] == ':' ? MAL_KEYWORD : MAL_SYMBOL;
-            return (mal_value_t){
-                .tag = tag, .as.string = string_init_with(symbol, tok.size)};
+            return (mal_value_t){.tag = tag,
+                                 .as.string = mal_string_new(symbol, tok.size)};
         }
     }
 }

@@ -41,6 +41,22 @@ string_t pr_str_sequence(mal_value_t value, char open, char close,
 }
 
 string_t pr_str(mal_value_t value, bool print_readably) {
+// #define DEBUG_PRINT_TYPES
+#ifdef DEBUG_PRINT_TYPES
+    switch (value.tag) {
+        case MAL_ERR: fprintf(stderr, "<ERR> "); break;
+        case MAL_NIL: fprintf(stderr, "<NIL> "); break;
+        case MAL_TRUE: fprintf(stderr, "<TRUE> "); break;
+        case MAL_FALSE: fprintf(stderr, "<FALSE> "); break;
+        case MAL_NUM: fprintf(stderr, "<NUM> "); break;
+        case MAL_KEYWORD: fprintf(stderr, "<KEYWORD> "); break;
+        case MAL_SYMBOL: fprintf(stderr, "<SYMBOL> "); break;
+        case MAL_STRING: fprintf(stderr, "<STRING> "); break;
+        case MAL_VEC: fprintf(stderr, "<VEC> "); break;
+        case MAL_LIST: fprintf(stderr, "<LIST> "); break;
+    }
+#endif
+
     switch (value.tag) {
         case MAL_NIL:
             return (string_t){.items = "nil", .size = 3, .capacity = 3};
@@ -56,13 +72,16 @@ string_t pr_str(mal_value_t value, bool print_readably) {
             return (string_t){.items = str, .size = c, .capacity = c};
         } break;
         case MAL_KEYWORD:
-        case MAL_SYMBOL: return value.as.string;
+        case MAL_SYMBOL:
+            return string_copy_with(value.as.string->chars,
+                                    value.as.string->size);
         case MAL_STRING:
             if (print_readably) {
-                return string_unescape(value.as.string);
+                return mal_string_unescape_direct(value.as.string);
             }
 
-            return value.as.string;
+            return string_copy_with(value.as.string->chars,
+                                    value.as.string->size);
         case MAL_VEC: return pr_str_sequence(value, '[', ']', print_readably);
         case MAL_LIST: return pr_str_sequence(value, '(', ')', print_readably);
         case MAL_ERR:

@@ -4,7 +4,9 @@
 #include "tgc.h"
 
 // fwd
-typedef struct mal_value_list mal_value_list_t;
+typedef struct mal_value_string  mal_value_string_t;
+typedef struct mal_value_list    mal_value_list_t;
+typedef struct mal_value_hashmap mal_value_hashmap_t;
 
 // =============================================================================
 
@@ -29,27 +31,42 @@ typedef enum __attribute__((packed)) mal_value_tag {
 typedef struct mal_value {
     mal_value_tag_t tag;
     union {
-        double            num;
-        string_t          string;
-        mal_value_list_t* list;
+        double              num;
+        mal_value_string_t* string;
+        mal_value_list_t*   list;
     } as;
 } mal_value_t;
 
 // =============================================================================
 
+struct mal_value_string {
+    size_t size;
+    char   chars[];
+};
+
+mal_value_string_t* mal_string_new(char const* chars, size_t size);
+
+mal_value_string_t* mal_string_new_from_cstr(char const* chars);
+
 /// Given a string, process escape codes into their values.
-string_t string_escape(string_t s);
+string_t mal_string_escape_direct(mal_value_string_t* s);
 
 /// Given a string, process escapable characters into their escaped values.
-string_t string_unescape(string_t s);
+string_t mal_string_unescape_direct(mal_value_string_t* s);
+
+/// Given a string, process escape codes into their values.
+mal_value_string_t* mal_string_escape(mal_value_string_t* s);
+
+/// Given a string, process escapable characters into their escaped values.
+mal_value_string_t* mal_string_unescape(mal_value_string_t* s);
 
 // =============================================================================
 
 /// A singly linked list.
-typedef struct mal_value_list {
+struct mal_value_list {
     mal_value_t            value;
     struct mal_value_list* next;
-} mal_value_list_t;
+};
 
 /// Prepend an item to the start of the list. Returns the new list with the
 /// added element.

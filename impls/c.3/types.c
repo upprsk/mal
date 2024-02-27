@@ -1,39 +1,56 @@
 #include "types.h"
 
 #include <assert.h>
+#include <string.h>
 
 #include "common.h"
 #include "da.h"
 #include "tgc.h"
 
-string_t string_escape(string_t s) {
+mal_value_string_t* mal_string_new(char const* chars, size_t size) {
+    mal_value_string_t* mstr =
+        tgc_calloc(&gc, sizeof(mal_value_string_t) + size, sizeof(char));
+
+    *mstr = (mal_value_string_t){.size = size};
+    memcpy(mstr->chars, chars, size);
+
+    return mstr;
+}
+
+mal_value_string_t* mal_string_new_from_cstr(char const* chars) {
+    return mal_string_new(chars, strlen(chars));
+}
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+string_t mal_string_escape_direct(mal_value_string_t* s) {
     string_t out = {0};
 
-    for (size_t i = 0; i < s.size; i++) {
-        if (s.items[i] == '\\') {
+    for (size_t i = 0; i < s->size; i++) {
+        if (s->chars[i] == '\\') {
             i++;
 
-            switch (s.items[i]) {
+            switch (s->chars[i]) {
                 case 'n': da_append(&out, '\n'); break;
                 case 't': da_append(&out, '\t'); break;
                 case 'r': da_append(&out, '\r'); break;
                 case '"': da_append(&out, '"'); break;
-                default: da_append(&out, s.items[i]); break;
+                default: da_append(&out, s->chars[i]); break;
             }
         } else {
-            da_append(&out, s.items[i]);
+            da_append(&out, s->chars[i]);
         }
     }
 
     return out;
 }
 
-string_t string_unescape(string_t s) {
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+string_t mal_string_unescape_direct(mal_value_string_t* s) {
     string_t out = {0};
     da_append(&out, '"');
 
-    for (size_t i = 0; i < s.size; i++) {
-        switch (s.items[i]) {
+    for (size_t i = 0; i < s->size; i++) {
+        switch (s->chars[i]) {
             case '\n':
                 da_append(&out, '\\');
                 da_append(&out, 'n');
@@ -54,13 +71,41 @@ string_t string_unescape(string_t s) {
                 da_append(&out, '\\');
                 da_append(&out, '\\');
                 break;
-            default: da_append(&out, s.items[i]);
+            default: da_append(&out, s->chars[i]);
         }
     }
 
     da_append(&out, '"');
 
     return out;
+}
+
+mal_value_string_t* mal_string_escape(mal_value_string_t* s) {
+    string_t out = mal_string_escape_direct(s);
+
+    mal_value_string_t* mstr =
+        tgc_calloc(&gc, sizeof(mal_value_string_t) + out.size, sizeof(char));
+
+    *mstr = (mal_value_string_t){.size = out.size};
+    memcpy(mstr->chars, out.items, out.size);
+
+    da_free(&out);
+
+    return mstr;
+}
+
+mal_value_string_t* mal_string_unescape(mal_value_string_t* s) {
+    string_t out = mal_string_unescape_direct(s);
+
+    mal_value_string_t* mstr =
+        tgc_calloc(&gc, sizeof(mal_value_string_t) + out.size, sizeof(char));
+
+    *mstr = (mal_value_string_t){.size = out.size};
+    memcpy(mstr->chars, out.items, out.size);
+
+    da_free(&out);
+
+    return mstr;
 }
 
 // =============================================================================
