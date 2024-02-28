@@ -95,18 +95,16 @@ string_t pr_str(mal_value_t value, bool print_readably) {
 #endif
 
     switch (value.tag) {
-        case MAL_NIL:
-            return (string_t){.items = "nil", .size = 3, .capacity = 3};
-        case MAL_TRUE:
-            return (string_t){.items = "true", .size = 4, .capacity = 4};
-        case MAL_FALSE:
-            return (string_t){.items = "false", .size = 5, .capacity = 5};
+        case MAL_BUILTIN: return string_init_with_cstr("builtin");
+        case MAL_NIL: return string_init_with_cstr("nil");
+        case MAL_TRUE: return string_init_with_cstr("true");
+        case MAL_FALSE: return string_init_with_cstr("false");
         case MAL_NUM: {
             int   c = snprintf(NULL, 0, "%g", value.as.num);
             char* str = tgc_calloc(&gc, c + 1, sizeof(char));
             snprintf(str, c + 1, "%g", value.as.num);
 
-            return (string_t){.items = str, .size = c, .capacity = c};
+            return string_init_with(str, c);
         } break;
         case MAL_KEYWORD:
         case MAL_SYMBOL:
@@ -121,10 +119,8 @@ string_t pr_str(mal_value_t value, bool print_readably) {
                                     value.as.string->size);
         case MAL_VEC: return pr_str_sequence(value, '[', ']', print_readably);
         case MAL_LIST: return pr_str_sequence(value, '(', ')', print_readably);
-        case MAL_HASMAP: return pr_str_hashmap(value, print_readably);
-        case MAL_ERR:
-            return (string_t){.items = "ERROR", .size = 5, .capacity = 5};
-            break;
+        case MAL_HASHMAP: return pr_str_hashmap(value, print_readably);
+        case MAL_ERR: return string_init_with_cstr("ERROR"); break;
     }
 
     return (string_t){0};

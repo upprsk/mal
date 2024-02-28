@@ -135,17 +135,22 @@ mal_value_list_t* list_end(mal_value_list_t* l) {
     return l;
 }
 
+void list_to_da(mal_value_list_t* list, mal_value_list_da_t* out) {
+    for (mal_value_list_t* l = list; l != NULL; l = l->next) {
+        da_append(out, l->value);
+    }
+}
+
 static mal_hashmap_entry_t* hashmap_find_entry(mal_hashmap_entry_t* entries,
                                                size_t               capacity,
                                                mal_value_string_t*  key) {
     uint32_t index = key->hash % capacity;
     for (;;) {
         mal_hashmap_entry_t* entry = &entries[index];
-        mal_value_string_t*  entry_string = entry->value.as.string;
-        if (entry_string == NULL) return entry;
-        if (entry_string->size == key->size &&
-            entry_string->hash == key->hash &&
-            memcmp(entry_string->chars, key->chars, key->size) == 0) {
+        mal_value_string_t*  entry_key = entry->key.as.string;
+        if (entry_key == NULL) return entry;
+        if (entry_key->size == key->size && entry_key->hash == key->hash &&
+            memcmp(entry_key->chars, key->chars, key->size) == 0) {
             return entry;
         }
 
@@ -199,7 +204,7 @@ bool mal_hashmap_put(mal_value_hashmap_t* hm, mal_value_t key,
 
 bool mal_hashmap_get(mal_value_hashmap_t const* hm, mal_value_t key,
                      mal_value_t* value) {
-    assert(is_valid_hashmap_key(key));
+    if (!is_valid_hashmap_key(key)) return false;
 
     if (hm->size == 0) return false;
 

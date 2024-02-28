@@ -61,6 +61,23 @@ static bool is_whitespace(char c) {
     }
 }
 
+/// If the given character is considered whitespace
+static bool is_digit(char c) {
+    switch (c) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9': return true;
+        default: return false;
+    }
+}
+
 /// If the given character is considered special
 static bool is_special(char c) {
     switch (c) {
@@ -260,7 +277,7 @@ static mal_value_t read_hashmap(reader_t* r) {
 
         if (reader_peek(r).items[0] == '}') {
             reader_next(r);
-            return (mal_value_t){.tag = MAL_HASMAP, .as.hashmap = hm};
+            return (mal_value_t){.tag = MAL_HASHMAP, .as.hashmap = hm};
         }
 
         mal_value_t key = read_form(r);
@@ -302,6 +319,29 @@ static mal_value_t read_atom(reader_t* r) {
         case '9':
             return (mal_value_t){.tag = MAL_NUM,
                                  .as.num = strtod(tok.items, NULL)};
+        case '-': {
+            if (tok.size == 1) {
+                return (mal_value_t){
+                    .tag = MAL_SYMBOL,
+                    .as.string = mal_string_new(tok.items, tok.size)};
+            }
+
+            for (size_t i = 1; i < tok.size; i++) {
+                if (!is_digit(tok.items[i])) {
+                    return (mal_value_t){
+                        .tag = MAL_SYMBOL,
+                        .as.string = mal_string_new(tok.items, tok.size)};
+                }
+            }
+
+            return (mal_value_t){.tag = MAL_NUM,
+                                 .as.num = -strtod(&tok.items[1], NULL)};
+        } break;
+        case '"': {
+            return (mal_value_t){.tag = MAL_STRING,
+                                 .as.string = mal_string_escape(mal_string_new(
+                                     tok.items + 1, tok.size - 2))};
+        }
         case '@': {
             mal_value_list_t* lst = NULL;
             lst = list_append(
@@ -370,12 +410,10 @@ static mal_value_t read_atom(reader_t* r) {
             }
 
             // symbol or keyword
-            char* symbol = tgc_calloc(&gc, tok.size, sizeof(char));
-            memcpy(symbol, tok.items, tok.size);
-
-            mal_value_tag_t tag = symbol[0] == ':' ? MAL_KEYWORD : MAL_SYMBOL;
-            return (mal_value_t){.tag = tag,
-                                 .as.string = mal_string_new(symbol, tok.size)};
+            mal_value_tag_t tag =
+                tok.items[0] == ':' ? MAL_KEYWORD : MAL_SYMBOL;
+            return (mal_value_t){
+                .tag = tag, .as.string = mal_string_new(tok.items, tok.size)};
         }
     }
 }

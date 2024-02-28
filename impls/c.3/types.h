@@ -6,9 +6,20 @@
 #include "tgc.h"
 
 // fwd
+typedef struct mal_value         mal_value_t;
+typedef struct mal_value_builtin mal_value_builtin_t;
 typedef struct mal_value_string  mal_value_string_t;
 typedef struct mal_value_list    mal_value_list_t;
 typedef struct mal_value_hashmap mal_value_hashmap_t;
+
+typedef mal_value_t (*mal_builtin_fn)(mal_value_hashmap_t* env,
+                                      mal_value_t          args);
+
+struct mal_value_builtin {
+    mal_builtin_fn impl;
+};
+
+// =============================================================================
 
 // =============================================================================
 
@@ -17,6 +28,7 @@ typedef struct mal_value_hashmap mal_value_hashmap_t;
 /// and `false`).
 typedef enum __attribute__((packed)) mal_value_tag {
     MAL_ERR,      // no storage
+    MAL_BUILTIN,  // uses `builtin`
     MAL_NIL,      // no storage
     MAL_TRUE,     // no storage
     MAL_FALSE,    // no storage
@@ -26,20 +38,25 @@ typedef enum __attribute__((packed)) mal_value_tag {
     MAL_STRING,   // uses `string`
     MAL_VEC,      // uses `list`
     MAL_LIST,     // uses `list`
-    MAL_HASMAP,   // uses `hashmap`
+    MAL_HASHMAP,  // uses `hashmap`
 } mal_value_tag_t;
 
 /// This is our value struct. It is just a 2 word (16 bytes on 64bit) containing
 /// our tag and the value.
-typedef struct mal_value {
+struct mal_value {
     mal_value_tag_t tag;
     union {
         double               num;
+        mal_value_builtin_t  builtin;
         mal_value_string_t*  string;
         mal_value_list_t*    list;
         mal_value_hashmap_t* hashmap;
     } as;
-} mal_value_t;
+};
+
+static inline bool is_valid_sequence(mal_value_t value) {
+    return value.tag == MAL_LIST || value.tag == MAL_VEC;
+}
 
 static inline bool is_valid_hashmap_key(mal_value_t value) {
     return value.tag == MAL_KEYWORD || value.tag == MAL_SYMBOL ||
@@ -87,6 +104,14 @@ mal_value_list_t* list_append(mal_value_list_t* l, mal_value_t value);
 
 /// Get the last element of the list.
 mal_value_list_t* list_end(mal_value_list_t* l);
+
+typedef struct mal_value_list_da {
+    mal_value_t* items;
+    size_t       size;
+    size_t       capacity;
+} mal_value_list_da_t;
+
+void list_to_da(mal_value_list_t* list, mal_value_list_da_t* out);
 
 // =============================================================================
 
