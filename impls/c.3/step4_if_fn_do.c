@@ -192,7 +192,7 @@ mal_value_t mal_eval_fn(mal_value_t args, env_t* env) {
     mal_value_t body = da.items[2];
     da_free(&da);
 
-    if (values.tag != MAL_LIST) {
+    if (values.tag != MAL_LIST && values.tag != MAL_VEC) {
         fprintf(stderr,
                 "ERROR: Invalid type for first parameter of 'fn*', "
                 "expected sequence\n");
@@ -293,6 +293,11 @@ int actual_main(void) {
     env_t env = {0};
 
     core_env_populate(&env);
+
+    static char const not_src[] = "(def! not (fn* (a) (if a false true)))";
+
+    string_t s = mal_rep(string_init_with_cstr((char*)not_src), &env);
+    da_free(&s);
 
     while (true) {
         fprintf(stdout, "user> ");

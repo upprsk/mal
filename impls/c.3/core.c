@@ -86,18 +86,97 @@ mal_value_t builtin_fn_mul(UNUSED env_t* env, mal_value_t args) {
 mal_value_t builtin_fn_prn(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
     if (arg == NULL) {
-        fprintf(stderr, "ERROR: Missing parameter for 'prn'\n");
-        return (mal_value_t){.tag = MAL_ERR};
+        fprintf(stdout, "\n");
+        return (mal_value_t){.tag = MAL_NIL};
     }
 
-    string_t v = pr_str(arg->value, true);
+    string_t out = {0};
+    for (mal_value_list_t* l = arg; l != NULL; l = l->next) {
+        if (out.size > 0) {
+            da_append(&out, ' ');
+        }
 
-    fwrite(v.items, sizeof(char), v.size, stdout);
+        string_t v = pr_str(l->value, true);
+
+        for (size_t i = 0; i < v.size; i++) {
+            da_append(&out, v.items[i]);
+        }
+    }
+
+    fwrite(out.items, sizeof(char), out.size, stdout);
     fprintf(stdout, "\n");
 
-    da_free(&v);
+    da_free(&out);
 
     return (mal_value_t){.tag = MAL_NIL};
+}
+
+mal_value_t builtin_fn_println(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_t* arg = args.as.list->next;
+    if (arg == NULL) {
+        fprintf(stdout, "\n");
+        return (mal_value_t){.tag = MAL_NIL};
+    }
+
+    string_t out = {0};
+    for (mal_value_list_t* l = arg; l != NULL; l = l->next) {
+        if (out.size > 0) {
+            da_append(&out, ' ');
+        }
+
+        string_t v = pr_str(l->value, false);
+
+        for (size_t i = 0; i < v.size; i++) {
+            da_append(&out, v.items[i]);
+        }
+    }
+
+    fwrite(out.items, sizeof(char), out.size, stdout);
+    fprintf(stdout, "\n");
+
+    da_free(&out);
+
+    return (mal_value_t){.tag = MAL_NIL};
+}
+
+mal_value_t builtin_fn_pr_str(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_t* arg = args.as.list->next;
+
+    string_t out = {0};
+    for (mal_value_list_t* l = arg; l != NULL; l = l->next) {
+        if (out.size > 0) {
+            da_append(&out, ' ');
+        }
+
+        string_t v = pr_str(l->value, true);
+
+        for (size_t i = 0; i < v.size; i++) {
+            da_append(&out, v.items[i]);
+        }
+    }
+
+    mal_value_string_t* str = mal_string_new(out.items, out.size);
+    da_free(&out);
+
+    return (mal_value_t){.tag = MAL_STRING, .as.string = str};
+}
+
+mal_value_t builtin_fn_str(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_t* arg = args.as.list->next;
+
+    string_t out = {0};
+    for (mal_value_list_t* l = arg; l != NULL; l = l->next) {
+        string_t v = pr_str(l->value, false);
+
+        for (size_t i = 0; i < v.size; i++) {
+            da_append(&out, v.items[i]);
+        }
+    }
+
+    mal_value_string_t* str = mal_string_new(out.items, out.size);
+    da_free(&out);
+
+    return (mal_value_t){.tag = MAL_STRING, .as.string = str};
 }
 
 mal_value_t builtin_fn_list(UNUSED env_t* env, mal_value_t args) {
@@ -127,7 +206,7 @@ mal_value_t builtin_fn_empty(UNUSED env_t* env, mal_value_t args) {
         return (mal_value_t){.tag = MAL_ERR};
     }
 
-    if (arg->value.tag != MAL_LIST) {
+    if (arg->value.tag != MAL_LIST && arg->value.tag != MAL_VEC) {
         fprintf(stderr, "ERROR: invalid input to 'empty', expected list\n");
         return (mal_value_t){.tag = MAL_ERR};
     }
@@ -136,14 +215,18 @@ mal_value_t builtin_fn_empty(UNUSED env_t* env, mal_value_t args) {
                              arg->value.as.list == NULL ? MAL_TRUE : MAL_FALSE};
 }
 
-mal_value_t builtin_fn_size(UNUSED env_t* env, mal_value_t args) {
+mal_value_t builtin_fn_count(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
     if (arg == NULL) {
         fprintf(stderr, "ERROR: Missing parameter for 'size'\n");
         return (mal_value_t){.tag = MAL_ERR};
     }
 
-    if (arg->value.tag != MAL_LIST) {
+    if (arg->value.tag == MAL_NIL) {
+        return (mal_value_t){.tag = MAL_NUM, .as.num = 0};
+    }
+
+    if (arg->value.tag != MAL_LIST && arg->value.tag != MAL_VEC) {
         fprintf(stderr, "ERROR: invalid input to 'size', expected list\n");
         return (mal_value_t){.tag = MAL_ERR};
     }
@@ -157,6 +240,9 @@ mal_value_t builtin_fn_size(UNUSED env_t* env, mal_value_t args) {
 }
 
 static bool mal_values_equals(mal_value_t lhs, mal_value_t rhs) {
+    if (lhs.tag == MAL_LIST && rhs.tag == MAL_VEC) rhs.tag = MAL_LIST;
+    if (lhs.tag == MAL_VEC && rhs.tag == MAL_LIST) lhs.tag = MAL_LIST;
+
     if (lhs.tag != rhs.tag) return false;
 
     switch (lhs.tag) {
@@ -238,40 +324,58 @@ mal_value_t builtin_fn_gte(UNUSED env_t* env, mal_value_t args) {
     buintin_fn_binary(args, >=);
 }
 
+#undef buintin_fn_min_binary
+#undef buintin_fn_binary
+
 void core_env_populate(env_t* env) {
+#define SYMBOL(s) {.tag = MAL_SYMBOL, .as.string = mal_string_new_from_cstr(s)}
+
     mal_value_t keys[] = {
-        {.tag = MAL_SYMBOL,     .as.string = mal_string_new_from_cstr("+")},
-        {.tag = MAL_SYMBOL,     .as.string = mal_string_new_from_cstr("-")},
-        {.tag = MAL_SYMBOL,     .as.string = mal_string_new_from_cstr("*")},
-        {.tag = MAL_SYMBOL,     .as.string = mal_string_new_from_cstr("/")},
-        {.tag = MAL_SYMBOL,   .as.string = mal_string_new_from_cstr("prn")},
-        {.tag = MAL_SYMBOL,  .as.string = mal_string_new_from_cstr("list")},
-        {.tag = MAL_SYMBOL, .as.string = mal_string_new_from_cstr("list?")},
-        {.tag = MAL_SYMBOL, .as.string = mal_string_new_from_cstr("empty")},
-        {.tag = MAL_SYMBOL,  .as.string = mal_string_new_from_cstr("size")},
-        {.tag = MAL_SYMBOL,     .as.string = mal_string_new_from_cstr("=")},
-        {.tag = MAL_SYMBOL,     .as.string = mal_string_new_from_cstr("<")},
-        {.tag = MAL_SYMBOL,    .as.string = mal_string_new_from_cstr("<=")},
-        {.tag = MAL_SYMBOL,     .as.string = mal_string_new_from_cstr(">")},
-        {.tag = MAL_SYMBOL,    .as.string = mal_string_new_from_cstr(">=")},
+        [0] = SYMBOL("+"),        //
+        [1] = SYMBOL("-"),        //
+        [2] = SYMBOL("*"),        //
+        [3] = SYMBOL("/"),        //
+        [4] = SYMBOL("pr-str"),   //
+        [5] = SYMBOL("str"),      //
+        [6] = SYMBOL("prn"),      //
+        [7] = SYMBOL("println"),  //
+        [8] = SYMBOL("list"),     //
+        [9] = SYMBOL("list?"),    //
+        [10] = SYMBOL("empty?"),  //
+        [11] = SYMBOL("count"),   //
+        [12] = SYMBOL("="),       //
+        [13] = SYMBOL("<"),       //
+        [14] = SYMBOL("<="),      //
+        [15] = SYMBOL(">"),       //
+        [16] = SYMBOL(">="),      //
     };
+#undef SYMBOL
+
+#define BUILTIN(f)                                                  \
+    {                                                               \
+        .tag = MAL_BUILTIN, .as.builtin = {.impl = builtin_fn_##f } \
+    }
 
     mal_value_t values[] = {
-        {.tag = MAL_BUILTIN,           .as.builtin = {.impl = builtin_fn_add}},
-        {.tag = MAL_BUILTIN,           .as.builtin = {.impl = builtin_fn_sub}},
-        {.tag = MAL_BUILTIN,           .as.builtin = {.impl = builtin_fn_mul}},
-        {.tag = MAL_BUILTIN,           .as.builtin = {.impl = builtin_fn_div}},
-        {.tag = MAL_BUILTIN,           .as.builtin = {.impl = builtin_fn_prn}},
-        {.tag = MAL_BUILTIN,          .as.builtin = {.impl = builtin_fn_list}},
-        {.tag = MAL_BUILTIN, .as.builtin = {.impl = builtin_fn_list_question}},
-        {.tag = MAL_BUILTIN,         .as.builtin = {.impl = builtin_fn_empty}},
-        {.tag = MAL_BUILTIN,          .as.builtin = {.impl = builtin_fn_size}},
-        {.tag = MAL_BUILTIN,        .as.builtin = {.impl = builtin_fn_equals}},
-        {.tag = MAL_BUILTIN,            .as.builtin = {.impl = builtin_fn_lt}},
-        {.tag = MAL_BUILTIN,           .as.builtin = {.impl = builtin_fn_lte}},
-        {.tag = MAL_BUILTIN,            .as.builtin = {.impl = builtin_fn_gt}},
-        {.tag = MAL_BUILTIN,           .as.builtin = {.impl = builtin_fn_gte}},
+        [0] = BUILTIN(add),            //
+        [1] = BUILTIN(sub),            //
+        [2] = BUILTIN(mul),            //
+        [3] = BUILTIN(div),            //
+        [4] = BUILTIN(pr_str),         //
+        [5] = BUILTIN(str),            //
+        [6] = BUILTIN(prn),            //
+        [7] = BUILTIN(println),        //
+        [8] = BUILTIN(list),           //
+        [9] = BUILTIN(list_question),  //
+        [10] = BUILTIN(empty),         //
+        [11] = BUILTIN(count),         //
+        [12] = BUILTIN(equals),        //
+        [13] = BUILTIN(lt),            //
+        [14] = BUILTIN(lte),           //
+        [15] = BUILTIN(gt),            //
+        [16] = BUILTIN(gte),           //
     };
+#undef BUILTIN
 
     static_assert(sizeof(keys) == sizeof(values),
                   "keys and values should have same size");
