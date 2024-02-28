@@ -103,6 +103,8 @@ struct mal_value_hashmap {
     size_t               capacity;
 };
 
+// TODO: Add ways to remove from the hasmap map
+
 bool mal_hashmap_put(mal_value_hashmap_t* hm, mal_value_t key,
                      mal_value_t value);
 bool mal_hashmap_get(mal_value_hashmap_t const* hm, mal_value_t key,

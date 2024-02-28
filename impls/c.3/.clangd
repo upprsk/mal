@@ -17,6 +17,7 @@ Diagnostics:
       - 'cert-err33-c'
       - 'altera-*'
       - 'misc-no-recursion'
+      - 'google-readability-todo'
     CheckOptions:
       readability-function-cognitive-complexity.Threshold: 60
 
