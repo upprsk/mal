@@ -120,6 +120,7 @@ string_t pr_str(mal_value_t value, bool print_readably) {
         case MAL_VEC: return pr_str_sequence(value, '[', ']', print_readably);
         case MAL_LIST: return pr_str_sequence(value, '(', ')', print_readably);
         case MAL_HASHMAP: return pr_str_hashmap(value, print_readably);
+        case MAL_FN: return string_init_with_cstr("#<function>"); break;
         case MAL_ERR: return string_init_with_cstr("ERROR"); break;
     }
 

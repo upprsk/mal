@@ -11,6 +11,7 @@ typedef struct mal_value_builtin mal_value_builtin_t;
 typedef struct mal_value_string  mal_value_string_t;
 typedef struct mal_value_list    mal_value_list_t;
 typedef struct mal_value_hashmap mal_value_hashmap_t;
+typedef struct mal_value_fn      mal_value_fn_t;
 
 typedef struct env env_t;
 
@@ -19,8 +20,6 @@ typedef mal_value_t (*mal_builtin_fn)(env_t* env, mal_value_t args);
 struct mal_value_builtin {
     mal_builtin_fn impl;
 };
-
-// =============================================================================
 
 // =============================================================================
 
@@ -40,6 +39,7 @@ typedef enum __attribute__((packed)) mal_value_tag {
     MAL_VEC,      // uses `list`
     MAL_LIST,     // uses `list`
     MAL_HASHMAP,  // uses `hashmap`
+    MAL_FN,       // uses `fn`
 } mal_value_tag_t;
 
 /// This is our value struct. It is just a 2 word (16 bytes on 64bit) containing
@@ -52,6 +52,7 @@ struct mal_value {
         mal_value_string_t*  string;
         mal_value_list_t*    list;
         mal_value_hashmap_t* hashmap;
+        mal_value_fn_t*      fn;
     } as;
 };
 
@@ -135,6 +136,14 @@ bool mal_hashmap_put(mal_value_hashmap_t* hm, mal_value_t key,
                      mal_value_t value);
 bool mal_hashmap_get(mal_value_hashmap_t const* hm, mal_value_t key,
                      mal_value_t* value);
+
+// =============================================================================
+
+struct mal_value_fn {
+    mal_value_list_da_t binds;
+    mal_value_t         body;
+    env_t*              outer_env;
+};
 
 // =============================================================================
 
