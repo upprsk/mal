@@ -12,8 +12,9 @@ typedef struct mal_value_string  mal_value_string_t;
 typedef struct mal_value_list    mal_value_list_t;
 typedef struct mal_value_hashmap mal_value_hashmap_t;
 
-typedef mal_value_t (*mal_builtin_fn)(mal_value_hashmap_t* env,
-                                      mal_value_t          args);
+typedef struct env env_t;
+
+typedef mal_value_t (*mal_builtin_fn)(env_t* env, mal_value_t args);
 
 struct mal_value_builtin {
     mal_builtin_fn impl;

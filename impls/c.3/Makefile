@@ -18,7 +18,11 @@ S2_HEADERS = reader.h printer.h types.h da.h da_config.h common.h $(LIBS_HEADERS
 S2_SRC = step2_eval.c reader.c printer.c types.c common.c $(LIBS_SRC)
 S2 = step2_eval
 
-all: $(S0) $(S1) $(S2)
+S3_HEADERS = reader.h printer.h types.h env.h da.h da_config.h common.h $(LIBS_HEADERS)
+S3_SRC = step3_env.c reader.c printer.c types.c env.c common.c $(LIBS_SRC)
+S3 = step3_env
+
+all: $(S0) $(S1) $(S2) $(S3)
 
 $(S0): $(S0_SRC) $(S0_HEADERS)
 	$(CC) $(CFLAGS) $(S0_SRC) $(LIBS) -o $(S0)
@@ -29,5 +33,8 @@ $(S1): $(S1_SRC) $(S1_HEADERS)
 $(S2): $(S2_SRC) $(S2_HEADERS)
 	$(CC) $(CFLAGS) $(S2_SRC) $(LIBS) -o $(S2)
 
+$(S3): $(S3_SRC) $(S3_HEADERS)
+	$(CC) $(CFLAGS) $(S3_SRC) $(LIBS) -o $(S3)
+
 .PHONY clean:
-	rm -f $(S0) $(S1)
+	rm -f $(S0) $(S1) $(S2) $(S3)
