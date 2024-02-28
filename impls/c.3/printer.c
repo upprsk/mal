@@ -17,8 +17,8 @@ typedef struct vector_str {
 } vector_str_t;
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-string_t pr_str_sequence(mal_value_t value, char open, char close,
-                         bool print_readably) {
+static string_t pr_str_sequence(mal_value_t value, char open, char close,
+                                bool print_readably) {
     string_t str = {0};
 
     da_append(&str, open);
@@ -40,6 +40,42 @@ string_t pr_str_sequence(mal_value_t value, char open, char close,
     return str;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+static string_t pr_str_hashmap(mal_value_t value, bool print_readably) {
+    mal_value_hashmap_t* hm = value.as.hashmap;
+    string_t             str = {0};
+
+    da_append(&str, '{');
+
+    size_t actual_i = 0;
+    for (size_t i = 0; i < hm->capacity; i++) {
+        mal_hashmap_entry_t* e = &hm->entries[i];
+
+        if (e->key.as.string == NULL) continue;
+        if (actual_i != 0) {
+            da_append(&str, ' ');
+        }
+
+        actual_i++;
+
+        string_t s = pr_str(e->key, print_readably);
+        for (size_t i = 0; i < s.size; i++) {
+            da_append(&str, s.items[i]);
+        }
+
+        da_append(&str, ' ');
+
+        s = pr_str(e->value, print_readably);
+        for (size_t i = 0; i < s.size; i++) {
+            da_append(&str, s.items[i]);
+        }
+    }
+
+    da_append(&str, '}');
+
+    return str;
+}
+
 string_t pr_str(mal_value_t value, bool print_readably) {
 // #define DEBUG_PRINT_TYPES
 #ifdef DEBUG_PRINT_TYPES
@@ -54,6 +90,7 @@ string_t pr_str(mal_value_t value, bool print_readably) {
         case MAL_STRING: fprintf(stderr, "<STRING> "); break;
         case MAL_VEC: fprintf(stderr, "<VEC> "); break;
         case MAL_LIST: fprintf(stderr, "<LIST> "); break;
+        case MAL_HASMAP: fprintf(stderr, "<HASHMAP> "); break;
     }
 #endif
 
@@ -84,6 +121,7 @@ string_t pr_str(mal_value_t value, bool print_readably) {
                                     value.as.string->size);
         case MAL_VEC: return pr_str_sequence(value, '[', ']', print_readably);
         case MAL_LIST: return pr_str_sequence(value, '(', ')', print_readably);
+        case MAL_HASMAP: return pr_str_hashmap(value, print_readably);
         case MAL_ERR:
             return (string_t){.items = "ERROR", .size = 5, .capacity = 5};
             break;

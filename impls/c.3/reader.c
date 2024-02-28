@@ -195,6 +195,7 @@ static vartok_t tokenize(string_t s, size_t* err) {
 static mal_value_t read_form(reader_t* r);
 static mal_value_t read_list(reader_t* r);
 static mal_value_t read_vector(reader_t* r);
+static mal_value_t read_hashmap(reader_t* r);
 static mal_value_t read_atom(reader_t* r);
 
 // -----------------------------------------------------------------------------
@@ -208,6 +209,7 @@ static mal_value_t read_form(reader_t* r) {
 
     if (reader_peek(r).items[0] == '(') return read_list(r);
     if (reader_peek(r).items[0] == '[') return read_vector(r);
+    if (reader_peek(r).items[0] == '{') return read_hashmap(r);
     return read_atom(r);
 }
 
@@ -241,6 +243,47 @@ static mal_value_t read_list(reader_t* r) {
 // Read a list in between a pair of `[` and `]`.
 static mal_value_t read_vector(reader_t* r) {
     return read_sequence(r, MAL_VEC, ']');
+}
+
+// Read a hashmap in between a pair of `{` and `}`.
+static mal_value_t read_hashmap(reader_t* r) {
+    reader_next(r);
+
+    mal_value_hashmap_t* hm = tgc_alloc(&gc, sizeof(mal_value_hashmap_t));
+    *hm = (mal_value_hashmap_t){0};
+
+    while (true) {
+        if (reader_at_end(r)) {
+            fprintf(stderr, "ERROR: unexpected EOF, expected `}`\n");
+            return (mal_value_t){.tag = MAL_ERR};
+        }
+
+        if (reader_peek(r).items[0] == '}') {
+            reader_next(r);
+            return (mal_value_t){.tag = MAL_HASMAP, .as.hashmap = hm};
+        }
+
+        mal_value_t key = read_form(r);
+        if (!is_valid_hashmap_key(key)) {
+            fprintf(stderr, "ERROR: form can't be used as key in hashmap\n");
+            return (mal_value_t){.tag = MAL_ERR};
+        }
+
+        if (reader_at_end(r)) {
+            fprintf(
+                stderr,
+                "ERROR: unexpected EOF, expected hashmap value after key\n");
+            return (mal_value_t){.tag = MAL_ERR};
+        }
+
+        if (reader_peek(r).items[0] == '}') {
+            fprintf(stderr, "ERROR: uneven number of elements in map\n");
+            return (mal_value_t){.tag = MAL_ERR};
+        }
+
+        mal_value_t value = read_form(r);
+        mal_hashmap_put(hm, key, value);
+    }
 }
 
 static mal_value_t read_atom(reader_t* r) {

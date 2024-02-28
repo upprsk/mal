@@ -1,6 +1,8 @@
 #include "types.h"
 
 #include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "common.h"
@@ -11,7 +13,8 @@ mal_value_string_t* mal_string_new(char const* chars, size_t size) {
     mal_value_string_t* mstr =
         tgc_calloc(&gc, sizeof(mal_value_string_t) + size, sizeof(char));
 
-    *mstr = (mal_value_string_t){.size = size};
+    *mstr =
+        (mal_value_string_t){.size = size, .hash = fnv_1a_hash(chars, size)};
     memcpy(mstr->chars, chars, size);
 
     return mstr;
@@ -83,12 +86,7 @@ string_t mal_string_unescape_direct(mal_value_string_t* s) {
 mal_value_string_t* mal_string_escape(mal_value_string_t* s) {
     string_t out = mal_string_escape_direct(s);
 
-    mal_value_string_t* mstr =
-        tgc_calloc(&gc, sizeof(mal_value_string_t) + out.size, sizeof(char));
-
-    *mstr = (mal_value_string_t){.size = out.size};
-    memcpy(mstr->chars, out.items, out.size);
-
+    mal_value_string_t* mstr = mal_string_new(out.items, out.size);
     da_free(&out);
 
     return mstr;
@@ -97,12 +95,7 @@ mal_value_string_t* mal_string_escape(mal_value_string_t* s) {
 mal_value_string_t* mal_string_unescape(mal_value_string_t* s) {
     string_t out = mal_string_unescape_direct(s);
 
-    mal_value_string_t* mstr =
-        tgc_calloc(&gc, sizeof(mal_value_string_t) + out.size, sizeof(char));
-
-    *mstr = (mal_value_string_t){.size = out.size};
-    memcpy(mstr->chars, out.items, out.size);
-
+    mal_value_string_t* mstr = mal_string_new(out.items, out.size);
     da_free(&out);
 
     return mstr;
@@ -140,6 +133,82 @@ mal_value_list_t* list_end(mal_value_list_t* l) {
     }
 
     return l;
+}
+
+static mal_hashmap_entry_t* hashmap_find_entry(mal_hashmap_entry_t* entries,
+                                               size_t               capacity,
+                                               mal_value_string_t*  key) {
+    uint32_t index = key->hash % capacity;
+    for (;;) {
+        mal_hashmap_entry_t* entry = &entries[index];
+        mal_value_string_t*  entry_string = entry->value.as.string;
+        if (entry_string == NULL) return entry;
+        if (entry_string->size == key->size &&
+            entry_string->hash == key->hash &&
+            memcmp(entry_string->chars, key->chars, key->size) == 0) {
+            return entry;
+        }
+
+        index = (index + 1) % capacity;
+    }
+}
+
+static void hashmap_adjust_capacity(mal_value_hashmap_t* hm, size_t capacity) {
+    mal_hashmap_entry_t* entries =
+        tgc_calloc(&gc, capacity, sizeof(mal_hashmap_entry_t));
+    for (size_t i = 0; i < capacity; i++) {
+        entries->key = (mal_value_t){0};
+        entries->value = (mal_value_t){.tag = MAL_NIL};
+    }
+
+    for (size_t i = 0; i < hm->capacity; i++) {
+        mal_hashmap_entry_t* entry = &hm->entries[i];
+        if (entry->key.as.string == NULL) continue;
+
+        mal_hashmap_entry_t* dest =
+            hashmap_find_entry(entries, capacity, entry->key.as.string);
+        dest->key = entry->key;
+        dest->value = entry->value;
+    }
+
+    tgc_free(&gc, hm->entries);
+    hm->entries = entries;
+    hm->capacity = capacity;
+}
+
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+bool mal_hashmap_put(mal_value_hashmap_t* hm, mal_value_t key,
+                     mal_value_t value) {
+    assert(is_valid_hashmap_key(key));
+
+    if (hm->size + 1 > (size_t)((double)hm->capacity * HASHMAP_MAX_LOAD)) {
+        size_t capacity = hm->capacity == 0 ? 8 : hm->capacity * 2;
+        hashmap_adjust_capacity(hm, capacity);
+    }
+
+    mal_hashmap_entry_t* entry =
+        hashmap_find_entry(hm->entries, hm->capacity, key.as.string);
+    bool is_new_key = entry->key.as.string == NULL;
+    if (is_new_key) hm->size++;
+
+    entry->key = key;
+    entry->value = value;
+
+    return is_new_key;
+}
+
+bool mal_hashmap_get(mal_value_hashmap_t const* hm, mal_value_t key,
+                     mal_value_t* value) {
+    assert(is_valid_hashmap_key(key));
+
+    if (hm->size == 0) return false;
+
+    mal_hashmap_entry_t* entry =
+        hashmap_find_entry(hm->entries, hm->capacity, key.as.string);
+    if (entry->key.as.string == NULL) return false;
+
+    *value = entry->value;
+    return true;
 }
 
 tgc_t gc;
