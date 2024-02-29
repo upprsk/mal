@@ -140,6 +140,8 @@ bool mal_hashmap_get(mal_value_hashmap_t const* hm, mal_value_t key,
 // =============================================================================
 
 struct mal_value_fn {
+    bool is_variadic;
+
     mal_value_list_da_t binds;
     mal_value_t         body;
     env_t*              outer_env;

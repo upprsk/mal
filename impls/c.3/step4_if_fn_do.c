@@ -201,6 +201,8 @@ mal_value_t mal_eval_fn(mal_value_t args, env_t* env) {
 
     list_to_da(values.as.list, &da);
 
+    bool   is_variadic = false;
+    size_t actual_size = 0;
     for (size_t i = 0; i < da.size; i++) {
         if (!is_valid_hashmap_key(da.items[i])) {
             fprintf(stderr,
@@ -208,10 +210,20 @@ mal_value_t mal_eval_fn(mal_value_t args, env_t* env) {
                     "hashable\n");
             return (mal_value_t){.tag = MAL_ERR};
         }
+
+        if (!is_variadic) actual_size++;
+
+        if (da.items[i].as.string->size == 1 &&
+            da.items[i].as.string->chars[0] == '&') {
+            is_variadic = true;
+        }
     }
 
     mal_value_fn_t* fn = tgc_alloc(&gc, sizeof(mal_value_fn_t));
-    *fn = (mal_value_fn_t){.binds = da, .outer_env = env, .body = body};
+    *fn = (mal_value_fn_t){.is_variadic = is_variadic,
+                           .binds = da,
+                           .outer_env = env,
+                           .body = body};
 
     return (mal_value_t){.tag = MAL_FN, .as.fn = fn};
 }
@@ -260,7 +272,7 @@ mal_value_t mal_eval(mal_value_t value, env_t* env) {
         mal_value_list_da_t exprs = {0};
         list_to_da(args.as.list->next, &exprs);
 
-        if (exprs.size != fn.as.fn->binds.size) {
+        if (!fn.as.fn->is_variadic && exprs.size != fn.as.fn->binds.size) {
             fprintf(stderr,
                     "ERROR: parameter count mismatch, function expected %zu "
                     "parameters, received %zu\n",
@@ -268,8 +280,16 @@ mal_value_t mal_eval(mal_value_t value, env_t* env) {
             return (mal_value_t){.tag = MAL_ERR};
         }
 
+        if (fn.as.fn->is_variadic && exprs.size < fn.as.fn->binds.size - 2) {
+            fprintf(stderr,
+                    "ERROR: parameter count mismatch, variadic function "
+                    "expected at east %zu parameters, received %zu\n",
+                    fn.as.fn->binds.size - 2, exprs.size);
+            return (mal_value_t){.tag = MAL_ERR};
+        }
+
         env_init_from(fn_env, fn.as.fn->outer_env, fn.as.fn->binds.items,
-                      exprs.items, fn.as.fn->binds.size);
+                      exprs.items, fn.as.fn->binds.size, exprs.size);
 
         da_free(&exprs);
 
