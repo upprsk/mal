@@ -1,6 +1,7 @@
 #include "printer.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -100,6 +101,14 @@ string_t pr_str(mal_value_t value, bool print_readably) {
         case MAL_TRUE: return string_init_with_cstr("true");
         case MAL_FALSE: return string_init_with_cstr("false");
         case MAL_NUM: {
+            if ((uint32_t)value.as.num == value.as.num) {
+                int   c = snprintf(NULL, 0, "%u", (uint32_t)value.as.num);
+                char* str = tgc_calloc(&gc, c + 1, sizeof(char));
+                snprintf(str, c + 1, "%u", (uint32_t)value.as.num);
+
+                return string_init_with(str, c);
+            }
+
             int   c = snprintf(NULL, 0, "%g", value.as.num);
             char* str = tgc_calloc(&gc, c + 1, sizeof(char));
             snprintf(str, c + 1, "%g", value.as.num);

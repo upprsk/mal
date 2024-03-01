@@ -26,6 +26,10 @@ S4_HEADERS = reader.h printer.h types.h env.h core.h da.h da_config.h common.h $
 S4_SRC = step4_if_fn_do.c reader.c printer.c types.c env.c core.c common.c $(LIBS_SRC)
 S4 = step4_if_fn_do
 
+S5_HEADERS = reader.h printer.h types.h env.h core.h da.h da_config.h common.h $(LIBS_HEADERS)
+S5_SRC = step5_tco.c reader.c printer.c types.c env.c core.c common.c $(LIBS_SRC)
+S5 = step5_tco
+
 all: $(S0) $(S1) $(S2) $(S3) $(S4)
 
 $(S0): $(S0_SRC) $(S0_HEADERS)
@@ -43,5 +47,8 @@ $(S3): $(S3_SRC) $(S3_HEADERS)
 $(S4): $(S4_SRC) $(S4_HEADERS)
 	$(CC) $(CFLAGS) $(S4_SRC) $(LIBS) -o $(S4)
 
+$(S5): $(S5_SRC) $(S5_HEADERS)
+	$(CC) $(CFLAGS) $(S5_SRC) $(LIBS) -o $(S5)
+
 .PHONY clean:
-	rm -f $(S0) $(S1) $(S2) $(S3) $(S4)
+	rm -f $(S0) $(S1) $(S2) $(S3) $(S4) $(S5)
