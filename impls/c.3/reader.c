@@ -109,6 +109,9 @@ static vartok_t tokenize(string_t s, size_t* err) {
     if (err != NULL) *err = 0;
 
     for (size_t i = 0; i < s.size;) {
+        // handle nulls in the string
+        if (s.items[i] == 0) break;
+
         // - `[\s,]*`: Matches any number of whitespaces or commas. This is not
         // captured so it will be ignored and not tokenized.
         while (i < s.size && (is_whitespace(s.items[i]) || s.items[i] == ',')) {
@@ -426,14 +429,14 @@ mal_value_t read_str(string_t s) {
     reader_t    reader = {.tokens = tokens};
     mal_value_t value = read_form(&reader);
 
-    da_free(&tokens);
-
     if (!reader_at_end(&reader)) {
         token_t tok = reader_peek(&reader);
         fprintf(stderr, "ERROR: expected EOF, found `%.*s`\n", (int)tok.size,
                 tok.items);
         return (mal_value_t){.tag = MAL_ERR};
     }
+
+    da_free(&tokens);
 
     return value;
 }

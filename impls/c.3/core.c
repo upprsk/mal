@@ -7,7 +7,44 @@
 #include "da.h"
 #include "env.h"
 #include "printer.h"
+#include "reader.h"
 #include "types.h"
+
+[[nodiscard]] string_t load_file(char const* path) {
+    // open the file and check for errors
+    FILE* f = fopen(path, "rbe");
+    if (f == NULL) return (string_t){0};
+
+    // get the size of the file
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return (string_t){0};
+    }
+
+    long tell_len = ftell(f);
+
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        return (string_t){0};
+    }
+
+    // allocate a buffer large enough load the data into
+    char* buf = tgc_calloc(&gc, tell_len, sizeof(char));
+    if (buf == NULL) {
+        fclose(f);
+        return (string_t){0};
+    }
+
+    // read the file into the buffer
+    size_t len = fread(buf, 1, tell_len, f);
+    assert(len == (size_t)tell_len);  // sanity check
+
+    // can close the file
+    fclose(f);
+
+    // wrap in a string and return it
+    return string_init_with(buf, len);
+}
 
 #define buintin_fn_min_binary(args, op)                                      \
     mal_value_list_da_t da = {0};                                            \
@@ -327,27 +364,91 @@ mal_value_t builtin_fn_gte(UNUSED env_t* env, mal_value_t args) {
 #undef buintin_fn_min_binary
 #undef buintin_fn_binary
 
+mal_value_t builtin_fn_read_str(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_t* arg = args.as.list->next;
+    if (arg == NULL) {
+        // FIXME: Is this correct?
+        return (mal_value_t){.tag = MAL_NIL};
+    }
+
+    if (arg->value.tag != MAL_STRING) {
+        fprintf(stderr,
+                "ERROR: Invalid type for 'read-str', expected a string as "
+                "parameter.\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    mal_value_string_t* s = arg->value.as.string;
+    return read_str(string_init_with(s->chars, s->size));
+}
+
+mal_value_t builtin_fn_slurp(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_t* arg = args.as.list->next;
+    if (arg == NULL) {
+        fprintf(stderr,
+                "ERROR: Invalid size for 'read-str', expected a 1 parameter, "
+                "got 0\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    if (arg->value.tag != MAL_STRING) {
+        fprintf(stderr,
+                "ERROR: Invalid type for 'slurp', expected a string as "
+                "parameter.\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    // TODO: null terminate the mal strings
+    mal_value_string_t* s = arg->value.as.string;
+
+    string_t str = load_file(s->chars);
+    if (str.items == NULL) {
+        fprintf(stderr, "ERROR: Failed to read file %s\n", s->chars);
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    return (mal_value_t){.tag = MAL_STRING,
+                         .as.string = mal_string_new(str.items, str.size)};
+}
+
+extern mal_value_t mal_eval(mal_value_t value, env_t* env);
+
+mal_value_t builtin_fn_eval(env_t* env, mal_value_t args) {
+    mal_value_list_t* arg = args.as.list->next;
+    if (arg == NULL) {
+        return (mal_value_t){.tag = MAL_NIL};
+    }
+
+    // get the root environment
+    while (env->outer) env = env->outer;
+
+    return mal_eval(arg->value, env);
+}
+
 void core_env_populate(env_t* env) {
 #define SYMBOL(s) {.tag = MAL_SYMBOL, .as.string = mal_string_new_from_cstr(s)}
 
     mal_value_t keys[] = {
-        [0] = SYMBOL("+"),        //
-        [1] = SYMBOL("-"),        //
-        [2] = SYMBOL("*"),        //
-        [3] = SYMBOL("/"),        //
-        [4] = SYMBOL("pr-str"),   //
-        [5] = SYMBOL("str"),      //
-        [6] = SYMBOL("prn"),      //
-        [7] = SYMBOL("println"),  //
-        [8] = SYMBOL("list"),     //
-        [9] = SYMBOL("list?"),    //
-        [10] = SYMBOL("empty?"),  //
-        [11] = SYMBOL("count"),   //
-        [12] = SYMBOL("="),       //
-        [13] = SYMBOL("<"),       //
-        [14] = SYMBOL("<="),      //
-        [15] = SYMBOL(">"),       //
-        [16] = SYMBOL(">="),      //
+        [0] = SYMBOL("+"),             //
+        [1] = SYMBOL("-"),             //
+        [2] = SYMBOL("*"),             //
+        [3] = SYMBOL("/"),             //
+        [4] = SYMBOL("pr-str"),        //
+        [5] = SYMBOL("str"),           //
+        [6] = SYMBOL("prn"),           //
+        [7] = SYMBOL("println"),       //
+        [8] = SYMBOL("list"),          //
+        [9] = SYMBOL("list?"),         //
+        [10] = SYMBOL("empty?"),       //
+        [11] = SYMBOL("count"),        //
+        [12] = SYMBOL("="),            //
+        [13] = SYMBOL("<"),            //
+        [14] = SYMBOL("<="),           //
+        [15] = SYMBOL(">"),            //
+        [16] = SYMBOL(">="),           //
+        [17] = SYMBOL("read-string"),  //
+        [18] = SYMBOL("slurp"),        //
+        [19] = SYMBOL("eval"),         //
     };
 #undef SYMBOL
 
@@ -374,6 +475,9 @@ void core_env_populate(env_t* env) {
         [14] = BUILTIN(lte),           //
         [15] = BUILTIN(gt),            //
         [16] = BUILTIN(gte),           //
+        [17] = BUILTIN(read_str),      //
+        [18] = BUILTIN(slurp),         //
+        [19] = BUILTIN(eval),          //
     };
 #undef BUILTIN
 

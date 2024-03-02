@@ -11,11 +11,12 @@
 
 mal_value_string_t* mal_string_new(char const* chars, size_t size) {
     mal_value_string_t* mstr =
-        tgc_calloc(&gc, sizeof(mal_value_string_t) + size, sizeof(char));
+        tgc_calloc(&gc, sizeof(mal_value_string_t) + size + 1, sizeof(char));
 
     *mstr =
         (mal_value_string_t){.size = size, .hash = fnv_1a_hash(chars, size)};
     memcpy(mstr->chars, chars, size);
+    mstr->chars[size] = 0;  // null terminate
 
     return mstr;
 }
@@ -85,8 +86,9 @@ string_t mal_string_unescape_direct(mal_value_string_t* s) {
 
 mal_value_string_t* mal_string_escape(mal_value_string_t* s) {
     string_t out = mal_string_escape_direct(s);
+    da_append(&out, 0);
 
-    mal_value_string_t* mstr = mal_string_new(out.items, out.size);
+    mal_value_string_t* mstr = mal_string_new(out.items, out.size - 1);
     da_free(&out);
 
     return mstr;
@@ -94,8 +96,9 @@ mal_value_string_t* mal_string_escape(mal_value_string_t* s) {
 
 mal_value_string_t* mal_string_unescape(mal_value_string_t* s) {
     string_t out = mal_string_unescape_direct(s);
+    da_append(&out, 0);
 
-    mal_value_string_t* mstr = mal_string_new(out.items, out.size);
+    mal_value_string_t* mstr = mal_string_new(out.items, out.size - 1);
     da_free(&out);
 
     return mstr;
