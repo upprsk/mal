@@ -100,6 +100,7 @@ mal_value_t builtin_fn_add(UNUSED env_t* env, mal_value_t args) {
                 "ERROR: Invalid size for `builtin_fn_add`, expected sequence "
                 "of 3, found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -109,12 +110,14 @@ mal_value_t builtin_fn_add(UNUSED env_t* env, mal_value_t args) {
             fprintf(
                 stderr,
                 "ERROR: invalid input to `builtin_fn_add`, expected number\n");
+            da_free(&da);
             return (mal_value_t){.tag = MAL_ERR};
         }
 
         acc += da.items[i].as.num;
     }
 
+    da_free(&da);
     return (mal_value_t){.tag = MAL_NUM, .as.num = acc};
 }
 
@@ -129,6 +132,7 @@ mal_value_t builtin_fn_sub(UNUSED env_t* env, mal_value_t args) {
                 "ERROR: Invalid size for `builtin_fn_add`, expected sequence "
                 "of 3, found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -138,12 +142,14 @@ mal_value_t builtin_fn_sub(UNUSED env_t* env, mal_value_t args) {
             fprintf(
                 stderr,
                 "ERROR: invalid input to `builtin_fn_add`, expected number\n");
+            da_free(&da);
             return (mal_value_t){.tag = MAL_ERR};
         }
 
         acc -= da.items[i].as.num;
     }
 
+    da_free(&da);
     return (mal_value_t){.tag = MAL_NUM, .as.num = acc};
 }
 
@@ -158,6 +164,7 @@ mal_value_t builtin_fn_div(UNUSED env_t* env, mal_value_t args) {
                 "ERROR: Invalid size for `builtin_fn_add`, expected sequence "
                 "of 3, found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -167,12 +174,14 @@ mal_value_t builtin_fn_div(UNUSED env_t* env, mal_value_t args) {
             fprintf(
                 stderr,
                 "ERROR: invalid input to `builtin_fn_add`, expected number\n");
+            da_free(&da);
             return (mal_value_t){.tag = MAL_ERR};
         }
 
         acc /= da.items[i].as.num;
     }
 
+    da_free(&da);
     return (mal_value_t){.tag = MAL_NUM, .as.num = acc};
 }
 
@@ -187,6 +196,7 @@ mal_value_t builtin_fn_mul(UNUSED env_t* env, mal_value_t args) {
                 "ERROR: Invalid size for `builtin_fn_add`, expected sequence "
                 "of 3, found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -196,12 +206,14 @@ mal_value_t builtin_fn_mul(UNUSED env_t* env, mal_value_t args) {
             fprintf(
                 stderr,
                 "ERROR: invalid input to `builtin_fn_add`, expected number\n");
+            da_free(&da);
             return (mal_value_t){.tag = MAL_ERR};
         }
 
         acc *= da.items[i].as.num;
     }
 
+    da_free(&da);
     return (mal_value_t){.tag = MAL_NUM, .as.num = acc};
 }
 
@@ -242,6 +254,9 @@ int actual_main(void) {
         mal_value_string_t* result = mal_rep(line, &env);
         if (result && result->size > 0) printf("%s\n", result->chars);
     }
+
+    // :)
+    free(env.data.entries);
 
     return 0;
 }
