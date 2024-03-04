@@ -10,7 +10,6 @@
 #include "env.h"
 #include "printer.h"
 #include "reader.h"
-#include "tgc.h"
 #include "types.h"
 
 mal_value_t mal_eval(mal_value_t value, env_t* env);
@@ -41,8 +40,7 @@ mal_value_t mal_eval_ast(mal_value_t ast, env_t* env) {
             return (mal_value_t){.tag = ast.tag, .as.list = out};
         }
         case MAL_HASHMAP: {
-            mal_value_hashmap_t* out =
-                tgc_alloc(&gc, sizeof(mal_value_hashmap_t));
+            mal_value_hashmap_t* out = mal_hashmap_new();
 
             mal_value_hashmap_t* hm = ast.as.hashmap;
             for (size_t i = 0; i < hm->capacity; i++) {
@@ -75,11 +73,13 @@ mal_value_t mal_eval_def(mal_value_t args, env_t* env) {
                 "ERROR: Invalid size for 'def!', expected sequence of 3, "
                 "found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
     if (!is_valid_hashmap_key(da.items[1])) {
         fprintf(stderr, "ERROR: Invalid parameter type for 'def!' key\n");
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -87,6 +87,7 @@ mal_value_t mal_eval_def(mal_value_t args, env_t* env) {
     if (value.tag == MAL_ERR) return value;
 
     env_set(env, da.items[1], value);
+    da_free(&da);
     return value;
 }
 
@@ -101,6 +102,7 @@ mal_value_t mal_eval_let(mal_value_t args, env_t* outer) {
                 "ERROR: Invalid size for 'def!', expected sequence of 3, "
                 "found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -108,6 +110,7 @@ mal_value_t mal_eval_let(mal_value_t args, env_t* outer) {
         fprintf(stderr,
                 "ERROR: Invalid type for first parameter of 'def!', "
                 "expected sequence\n");
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -120,7 +123,11 @@ mal_value_t mal_eval_let(mal_value_t args, env_t* outer) {
         }
 
         mal_value_t value = mal_eval(binding->value, &env);
-        if (value.tag == MAL_ERR) return value;
+        if (value.tag == MAL_ERR) {
+            da_free(&da);
+            return value;
+        }
+
         env_set(&env, key, value);
 
         key = (mal_value_t){0};
@@ -129,10 +136,15 @@ mal_value_t mal_eval_let(mal_value_t args, env_t* outer) {
     if (key.tag != MAL_ERR) {
         fprintf(stderr,
                 "ERROR: Invalid length for bindings list, dangling key\n");
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
-    return mal_eval(da.items[2], &env);
+    mal_value_t v = mal_eval(da.items[2], &env);
+    da_free(&da);
+    free(env.data.entries);
+
+    return v;
 }
 
 mal_value_t mal_eval(mal_value_t value, env_t* env) {
@@ -163,11 +175,11 @@ mal_value_t mal_eval(mal_value_t value, env_t* env) {
     return (mal_value_t){.tag = MAL_ERR};
 }
 
-string_t mal_print(mal_value_t value) { return pr_str(value, true); }
+mal_value_string_t* mal_print(mal_value_t value) { return pr_str(value, true); }
 
-string_t mal_rep(string_t s, env_t* env) {
+mal_value_string_t* mal_rep(string_t s, env_t* env) {
     mal_value_t val = mal_eval(mal_read(s), env);
-    if (val.tag == MAL_ERR) return (string_t){0};
+    if (val.tag == MAL_ERR) return NULL;
 
     return mal_print(val);
 }
@@ -183,6 +195,7 @@ mal_value_t builtin_fn_add(UNUSED env_t* env, mal_value_t args) {
                 "ERROR: Invalid size for 'builtin_fn_add', expected sequence "
                 "of 3, found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -192,6 +205,7 @@ mal_value_t builtin_fn_add(UNUSED env_t* env, mal_value_t args) {
             fprintf(
                 stderr,
                 "ERROR: invalid input to 'builtin_fn_add', expected number\n");
+            da_free(&da);
             return (mal_value_t){.tag = MAL_ERR};
         }
 
@@ -213,6 +227,7 @@ mal_value_t builtin_fn_sub(UNUSED env_t* env, mal_value_t args) {
                 "ERROR: Invalid size for 'builtin_fn_sub', expected sequence "
                 "of 3, found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -222,6 +237,7 @@ mal_value_t builtin_fn_sub(UNUSED env_t* env, mal_value_t args) {
             fprintf(
                 stderr,
                 "ERROR: invalid input to 'builtin_fn_sub', expected number\n");
+            da_free(&da);
             return (mal_value_t){.tag = MAL_ERR};
         }
 
@@ -243,6 +259,7 @@ mal_value_t builtin_fn_div(UNUSED env_t* env, mal_value_t args) {
                 "ERROR: Invalid size for 'builtin_fn_div', expected sequence "
                 "of 3, found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -252,6 +269,7 @@ mal_value_t builtin_fn_div(UNUSED env_t* env, mal_value_t args) {
             fprintf(
                 stderr,
                 "ERROR: invalid input to 'builtin_fn_div', expected number\n");
+            da_free(&da);
             return (mal_value_t){.tag = MAL_ERR};
         }
 
@@ -273,6 +291,7 @@ mal_value_t builtin_fn_mul(UNUSED env_t* env, mal_value_t args) {
                 "ERROR: Invalid size for 'builtin_fn_mul', expected sequence "
                 "of 3, found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -282,6 +301,7 @@ mal_value_t builtin_fn_mul(UNUSED env_t* env, mal_value_t args) {
             fprintf(
                 stderr,
                 "ERROR: invalid input to 'builtin_fn_mul', expected number\n");
+            da_free(&da);
             return (mal_value_t){.tag = MAL_ERR};
         }
 
@@ -326,15 +346,18 @@ int actual_main(void) {
 
         string_t line = da_init_fixed(buf, n - 1);
 
-        string_t result = mal_rep(line, &env);
-        if (result.size > 0) printf("%.*s\n", (int)result.size, result.items);
+        mal_value_string_t* result = mal_rep(line, &env);
+        if (result && result->size > 0) printf("%s\n", result->chars);
     }
+
+    // :)
+    free(env.data.entries);
 
     return 0;
 }
 
-int main(int argc, UNUSED char** argv) {
-    tgc_start(&gc, &argc);
+int main(UNUSED int argc, UNUSED char** argv) {
+    gc_init();
 
     // this is some compiler black magic to make shure that this call is _never_
     // inlined, an as such our GC will work. (TGC depends on the allocations
@@ -342,7 +365,7 @@ int main(int argc, UNUSED char** argv) {
     int (*volatile func)(void) = actual_main;
     int r = func();
 
-    tgc_stop(&gc);
+    gc_deinit();
 
     return r;
 }
