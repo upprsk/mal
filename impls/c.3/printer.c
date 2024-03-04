@@ -137,6 +137,7 @@ mal_value_string_t* pr_str(mal_value_t value, bool print_readably) {
         case MAL_HASHMAP: return pr_str_hashmap(value, print_readably);
         case MAL_FN: return mal_string_new_from_cstr("#<function>"); break;
         case MAL_ERR: return mal_string_new_from_cstr("ERROR"); break;
+        case MAL_ENV: assert(false && "Invalid tag in pr_str: env");
     }
 
     assert(false && "Invalid tag in pr_str");

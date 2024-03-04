@@ -11,7 +11,6 @@
 #include "env.h"
 #include "printer.h"
 #include "reader.h"
-#include "tgc.h"
 #include "types.h"
 
 mal_value_t mal_eval(mal_value_t value, env_t* env);
@@ -42,8 +41,7 @@ mal_value_t mal_eval_ast(mal_value_t ast, env_t* env) {
             return (mal_value_t){.tag = ast.tag, .as.list = out};
         }
         case MAL_HASHMAP: {
-            mal_value_hashmap_t* out =
-                tgc_alloc(&gc, sizeof(mal_value_hashmap_t));
+            mal_value_hashmap_t* out = mal_hashmap_new();
 
             mal_value_hashmap_t* hm = ast.as.hashmap;
             for (size_t i = 0; i < hm->capacity; i++) {
@@ -76,24 +74,30 @@ mal_value_t mal_eval_def(mal_value_t args, env_t* env) {
                 "ERROR: Invalid size for 'def!', expected sequence of 3, "
                 "found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
     if (!is_valid_hashmap_key(da.items[1])) {
         fprintf(stderr, "ERROR: Invalid parameter type for 'def!' key\n");
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
     mal_value_t value = mal_eval(da.items[2], env);
-    if (value.tag == MAL_ERR) return value;
+    if (value.tag == MAL_ERR) {
+        da_free(&da);
+        return value;
+    }
 
     env_set(env, da.items[1], value);
+
+    da_free(&da);
     return value;
 }
 
 mal_value_t mal_eval_let(mal_value_t args, env_t* outer) {
-    env_t* env = tgc_alloc(&gc, sizeof(env_t));
-    *env = (env_t){.outer = outer};
+    env_t* env = env_new(outer);
 
     mal_value_list_da_t da = {0};
     list_to_da(args.as.list, &da);
@@ -103,6 +107,7 @@ mal_value_t mal_eval_let(mal_value_t args, env_t* outer) {
                 "ERROR: Invalid size for 'def!', expected sequence of 3, "
                 "found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -110,6 +115,7 @@ mal_value_t mal_eval_let(mal_value_t args, env_t* outer) {
         fprintf(stderr,
                 "ERROR: Invalid type for first parameter of 'def!', "
                 "expected sequence\n");
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -122,7 +128,10 @@ mal_value_t mal_eval_let(mal_value_t args, env_t* outer) {
         }
 
         mal_value_t value = mal_eval(binding->value, env);
-        if (value.tag == MAL_ERR) return value;
+        if (value.tag == MAL_ERR) {
+            da_free(&da);
+            return value;
+        }
         env_set(env, key, value);
 
         key = (mal_value_t){0};
@@ -131,10 +140,14 @@ mal_value_t mal_eval_let(mal_value_t args, env_t* outer) {
     if (key.tag != MAL_ERR) {
         fprintf(stderr,
                 "ERROR: Invalid length for bindings list, dangling key\n");
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
-    return mal_eval(da.items[2], env);
+    mal_value_t v = mal_eval(da.items[2], env);
+    da_free(&da);
+
+    return v;
 }
 
 mal_value_t mal_eval_do(mal_value_t args, env_t* env) {
@@ -160,17 +173,31 @@ mal_value_t mal_eval_if(mal_value_t args, env_t* env) {
                 "ERROR: Invalid size for 'if', expected sequence of 3, "
                 "found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
     mal_value_t condition = mal_eval(da.items[1], env);
-    if (condition.tag == MAL_ERR) return condition;
-
-    if (condition.tag != MAL_NIL && condition.tag != MAL_FALSE) {
-        return mal_eval(da.items[2], env);
+    if (condition.tag == MAL_ERR) {
+        da_free(&da);
+        return condition;
     }
 
-    if (da.size == 4) return mal_eval(da.items[3], env);
+    if (condition.tag != MAL_NIL && condition.tag != MAL_FALSE) {
+        mal_value_t v = mal_eval(da.items[2], env);
+
+        da_free(&da);
+        return v;
+    }
+
+    if (da.size == 4) {
+        mal_value_t v = mal_eval(da.items[3], env);
+        da_free(&da);
+
+        return v;
+    }
+
+    da_free(&da);
     return (mal_value_t){.tag = MAL_NIL};
 }
 
@@ -185,6 +212,7 @@ mal_value_t mal_eval_fn(mal_value_t args, env_t* env) {
                 "ERROR: Invalid size for 'fn*', expected sequence of 3, "
                 "found %zu\n",
                 da.size);
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -196,6 +224,7 @@ mal_value_t mal_eval_fn(mal_value_t args, env_t* env) {
         fprintf(stderr,
                 "ERROR: Invalid type for first parameter of 'fn*', "
                 "expected sequence\n");
+        da_free(&da);
         return (mal_value_t){.tag = MAL_ERR};
     }
 
@@ -208,6 +237,7 @@ mal_value_t mal_eval_fn(mal_value_t args, env_t* env) {
             fprintf(stderr,
                     "ERROR: Invalid type for parameter name of 'fn*', expected "
                     "hashable\n");
+            da_free(&da);
             return (mal_value_t){.tag = MAL_ERR};
         }
 
@@ -219,13 +249,8 @@ mal_value_t mal_eval_fn(mal_value_t args, env_t* env) {
         }
     }
 
-    mal_value_fn_t* fn = tgc_alloc(&gc, sizeof(mal_value_fn_t));
-    *fn = (mal_value_fn_t){.is_variadic = is_variadic,
-                           .binds = da,
-                           .outer_env = env,
-                           .body = body};
-
-    return (mal_value_t){.tag = MAL_FN, .as.fn = fn};
+    return (mal_value_t){.tag = MAL_FN,
+                         .as.fn = mal_fn_new(is_variadic, da, body, env)};
 }
 
 mal_value_t mal_eval(mal_value_t value, env_t* env) {
@@ -267,7 +292,7 @@ mal_value_t mal_eval(mal_value_t value, env_t* env) {
 
     if (fn.tag == MAL_BUILTIN) return fn.as.builtin.impl(env, args);
     if (fn.tag == MAL_FN) {
-        env_t* fn_env = tgc_alloc(&gc, sizeof(env_t));
+        env_t* fn_env = env_new(NULL);
 
         mal_value_list_da_t exprs = {0};
         list_to_da(args.as.list->next, &exprs);
@@ -277,6 +302,7 @@ mal_value_t mal_eval(mal_value_t value, env_t* env) {
                     "ERROR: parameter count mismatch, function expected %zu "
                     "parameters, received %zu\n",
                     fn.as.fn->binds.size, exprs.size);
+            da_free(&exprs);
             return (mal_value_t){.tag = MAL_ERR};
         }
 
@@ -285,6 +311,7 @@ mal_value_t mal_eval(mal_value_t value, env_t* env) {
                     "ERROR: parameter count mismatch, variadic function "
                     "expected at east %zu parameters, received %zu\n",
                     fn.as.fn->binds.size - 2, exprs.size);
+            da_free(&exprs);
             return (mal_value_t){.tag = MAL_ERR};
         }
 
@@ -292,7 +319,6 @@ mal_value_t mal_eval(mal_value_t value, env_t* env) {
                       exprs.items, fn.as.fn->binds.size, exprs.size);
 
         da_free(&exprs);
-
         return mal_eval(fn.as.fn->body, fn_env);
     }
 
@@ -300,11 +326,11 @@ mal_value_t mal_eval(mal_value_t value, env_t* env) {
     return (mal_value_t){.tag = MAL_ERR};
 }
 
-string_t mal_print(mal_value_t value) { return pr_str(value, true); }
+mal_value_string_t* mal_print(mal_value_t value) { return pr_str(value, true); }
 
-string_t mal_rep(string_t s, env_t* env) {
+mal_value_string_t* mal_rep(string_t s, env_t* env) {
     mal_value_t val = mal_eval(mal_read(s), env);
-    if (val.tag == MAL_ERR) return (string_t){0};
+    if (val.tag == MAL_ERR) return NULL;
 
     return mal_print(val);
 }
@@ -316,8 +342,9 @@ int actual_main(void) {
 
     static char const not_src[] = "(def! not (fn* (a) (if a false true)))";
 
-    string_t s = mal_rep(string_init_with_cstr((char*)not_src), &env);
-    da_free(&s);
+    mal_value_t r =
+        mal_eval(mal_read(string_init_with_cstr((char*)not_src)), &env);
+    assert(r.tag != MAL_ERR);
 
     while (true) {
         fprintf(stdout, "user> ");
@@ -329,15 +356,18 @@ int actual_main(void) {
 
         string_t line = da_init_fixed(buf, n - 1);
 
-        string_t result = mal_rep(line, &env);
-        if (result.size > 0) printf("%.*s\n", (int)result.size, result.items);
+        mal_value_string_t* result = mal_rep(line, &env);
+        if (result && result->size > 0) printf("%s\n", result->chars);
     }
+
+    // :)
+    free(env.data.entries);
 
     return 0;
 }
 
-int main(int argc, UNUSED char** argv) {
-    tgc_start(&gc, &argc);
+int main(UNUSED int argc, UNUSED char** argv) {
+    gc_init();
 
     // this is some compiler black magic to make shure that this call is _never_
     // inlined, an as such our GC will work. (TGC depends on the allocations
@@ -345,7 +375,7 @@ int main(int argc, UNUSED char** argv) {
     int (*volatile func)(void) = actual_main;
     int r = func();
 
-    tgc_stop(&gc);
+    gc_deinit();
 
     return r;
 }

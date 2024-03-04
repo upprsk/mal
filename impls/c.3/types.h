@@ -38,6 +38,7 @@ typedef enum __attribute__((packed)) mal_value_tag {
     MAL_VEC,      // uses `list`
     MAL_LIST,     // uses `list`
     MAL_HASHMAP,  // uses `hashmap`
+    MAL_ENV,      // IS NOT A `mal_value`! But used by GC
     MAL_FN,       // uses `fn`
 } mal_value_tag_t;
 
@@ -66,14 +67,15 @@ static inline bool is_valid_hashmap_key(mal_value_t value) {
 
 // =============================================================================
 
-typedef enum gc_mark {
+typedef enum __attribute__((packed)) gc_mark {
     GC_MARK_NONE,
     GC_MARK_REACHED,
 } gc_mark_t;
 
 typedef struct gc_obj {
-    struct gc_obj* next;
-    gc_mark_t      mark;
+    struct gc_obj*  next;
+    gc_mark_t       mark;
+    mal_value_tag_t tag;
 } gc_obj_t;
 
 #define gc_alloc(...) malloc(__VA_ARGS__)
@@ -86,7 +88,7 @@ void gc_init();
 void gc_deinit();
 
 /// Add an object to the garbage collector.
-void gc_add_obj(gc_obj_t* obj);
+void gc_add_obj(mal_value_tag_t tag, gc_obj_t* obj);
 
 // =============================================================================
 
@@ -177,3 +179,6 @@ struct mal_value_fn {
     mal_value_t         body;
     env_t*              outer_env;
 };
+
+mal_value_fn_t* mal_fn_new(bool is_variadic, mal_value_list_da_t binds,
+                           mal_value_t body, env_t* outer_env);

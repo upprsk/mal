@@ -3,6 +3,8 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "da.h"
 #include "env.h"
@@ -29,7 +31,7 @@
     }
 
     // allocate a buffer large enough load the data into
-    char* buf = tgc_calloc(&gc, tell_len, sizeof(char));
+    char* buf = calloc(tell_len, sizeof(char));
     if (buf == NULL) {
         fclose(f);
         return (string_t){0};
@@ -133,10 +135,10 @@ mal_value_t builtin_fn_prn(UNUSED env_t* env, mal_value_t args) {
             da_append(&out, ' ');
         }
 
-        string_t v = pr_str(l->value, true);
+        mal_value_string_t* v = pr_str(l->value, true);
 
-        for (size_t i = 0; i < v.size; i++) {
-            da_append(&out, v.items[i]);
+        for (size_t i = 0; i < v->size; i++) {
+            da_append(&out, v->chars[i]);
         }
     }
 
@@ -161,10 +163,10 @@ mal_value_t builtin_fn_println(UNUSED env_t* env, mal_value_t args) {
             da_append(&out, ' ');
         }
 
-        string_t v = pr_str(l->value, false);
+        mal_value_string_t* v = pr_str(l->value, false);
 
-        for (size_t i = 0; i < v.size; i++) {
-            da_append(&out, v.items[i]);
+        for (size_t i = 0; i < v->size; i++) {
+            da_append(&out, v->chars[i]);
         }
     }
 
@@ -185,10 +187,10 @@ mal_value_t builtin_fn_pr_str(UNUSED env_t* env, mal_value_t args) {
             da_append(&out, ' ');
         }
 
-        string_t v = pr_str(l->value, true);
+        mal_value_string_t* v = pr_str(l->value, true);
 
-        for (size_t i = 0; i < v.size; i++) {
-            da_append(&out, v.items[i]);
+        for (size_t i = 0; i < v->size; i++) {
+            da_append(&out, v->chars[i]);
         }
     }
 
@@ -203,10 +205,10 @@ mal_value_t builtin_fn_str(UNUSED env_t* env, mal_value_t args) {
 
     string_t out = {0};
     for (mal_value_list_t* l = arg; l != NULL; l = l->next) {
-        string_t v = pr_str(l->value, false);
+        mal_value_string_t* v = pr_str(l->value, false);
 
-        for (size_t i = 0; i < v.size; i++) {
-            da_append(&out, v.items[i]);
+        for (size_t i = 0; i < v->size; i++) {
+            da_append(&out, v->chars[i]);
         }
     }
 

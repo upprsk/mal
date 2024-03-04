@@ -2,14 +2,25 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "types.h"
+
+env_t* env_new(env_t* outer) {
+    env_t* env = gc_alloc(sizeof(env_t));
+    *env = (env_t){.outer = outer};
+
+    gc_add_obj(MAL_ENV, &env->obj);
+
+    return env;
+}
 
 // NOLINTBEGIN(bugprone-easily-swappable-parameters)
 void env_init_from(env_t* env, env_t* outer, mal_value_t* binds,
                    mal_value_t* exprs, size_t binds_len, size_t exprs_len) {
     // NOLINTEND(bugprone-easily-swappable-parameters)
-    *env = (env_t){.outer = outer};
+    // *env = (env_t){.outer = outer};
+    env->outer = outer;
 
     for (size_t i = 0; i < binds_len; i++) {
         if (binds[i].as.string->size == 1 &&

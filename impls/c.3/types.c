@@ -8,6 +8,7 @@
 
 #include "common.h"
 #include "da.h"
+#include "env.h"
 
 typedef struct gc {
     gc_obj_t* objs;
@@ -19,6 +20,32 @@ void gc_init() { gc = (gc_t){0}; }
 
 void gc_deinit() {
     for (gc_obj_t* obj = gc.objs; obj != NULL;) {
+        switch (obj->tag) {
+            case MAL_ERR:
+            case MAL_BUILTIN:
+            case MAL_NIL:
+            case MAL_TRUE:
+            case MAL_FALSE:
+            case MAL_NUM:
+            case MAL_KEYWORD:
+            case MAL_SYMBOL:
+            case MAL_STRING:
+            case MAL_VEC:
+            case MAL_LIST: break;
+            case MAL_HASHMAP: {
+                mal_value_hashmap_t* hm = (mal_value_hashmap_t*)obj;
+                free(hm->entries);
+            } break;
+            case MAL_FN: {
+                mal_value_fn_t* fn = (mal_value_fn_t*)obj;
+                da_free(&fn->binds);
+            } break;
+            case MAL_ENV: {
+                env_t* env = (env_t*)obj;
+                free(env->data.entries);
+            } break;
+        }
+
         gc_obj_t* o = obj;
         obj = obj->next;
 
@@ -26,9 +53,10 @@ void gc_deinit() {
     }
 }
 
-void gc_add_obj(gc_obj_t* obj) {
+void gc_add_obj(mal_value_tag_t tag, gc_obj_t* obj) {
     obj->next = gc.objs;
     obj->mark = GC_MARK_NONE;
+    obj->tag = tag;
     gc.objs = obj;
 }
 
@@ -44,7 +72,7 @@ mal_value_string_t* mal_string_new(char const* chars, size_t size) {
     memcpy(mstr->chars, chars, size);
     mstr->chars[size] = 0;  // null terminate
 
-    gc_add_obj(&mstr->obj);
+    gc_add_obj(MAL_STRING, &mstr->obj);
 
     return mstr;
 }
@@ -55,7 +83,7 @@ mal_value_string_t* mal_string_new_sized(size_t size) {
     *mstr = (mal_value_string_t){.size = size};
     mstr->chars[size] = 0;  // null terminate
 
-    gc_add_obj(&mstr->obj);
+    gc_add_obj(MAL_STRING, &mstr->obj);
 
     return mstr;
 }
@@ -136,7 +164,7 @@ mal_value_list_t* list_new(mal_value_t value, mal_value_list_t* next) {
 
     *new_node = (mal_value_list_t){.value = value, .next = next};
 
-    gc_add_obj(&new_node->obj);
+    gc_add_obj(MAL_LIST, &new_node->obj);
 
     return new_node;
 }
@@ -169,6 +197,7 @@ mal_value_list_t* list_end(mal_value_list_t* l) {
 
 void list_to_da(mal_value_list_t* list, mal_value_list_da_t* out) {
     for (mal_value_list_t* l = list; l != NULL; l = l->next) {
+        // NOLINTNEXTLINE(bugprone-suspicious-realloc-usage)
         da_append(out, l->value);
     }
 }
@@ -217,7 +246,7 @@ mal_value_hashmap_t* mal_hashmap_new() {
     mal_value_hashmap_t* hm = gc_alloc(sizeof(mal_value_hashmap_t));
     *hm = (mal_value_hashmap_t){0};
 
-    gc_add_obj(&hm->obj);
+    gc_add_obj(MAL_HASHMAP, &hm->obj);
 
     return hm;
 }
@@ -255,4 +284,17 @@ bool mal_hashmap_get(mal_value_hashmap_t const* hm, mal_value_t key,
 
     *value = entry->value;
     return true;
+}
+
+mal_value_fn_t* mal_fn_new(bool is_variadic, mal_value_list_da_t binds,
+                           mal_value_t body, env_t* outer_env) {
+    mal_value_fn_t* fn = gc_alloc(sizeof(mal_value_fn_t));
+    *fn = (mal_value_fn_t){.is_variadic = is_variadic,
+                           .binds = binds,
+                           .outer_env = outer_env,
+                           .body = body};
+
+    gc_add_obj(MAL_FN, &fn->obj);
+
+    return fn;
 }
