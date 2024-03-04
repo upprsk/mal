@@ -409,8 +409,11 @@ mal_value_t builtin_fn_slurp(UNUSED env_t* env, mal_value_t args) {
         return (mal_value_t){.tag = MAL_ERR};
     }
 
-    return (mal_value_t){.tag = MAL_STRING,
-                         .as.string = mal_string_new(str.items, str.size)};
+    mal_value_t v = {.tag = MAL_STRING,
+                     .as.string = mal_string_new(str.items, str.size)};
+
+    da_free(&str);
+    return v;
 }
 
 extern mal_value_t mal_eval(mal_value_t value, env_t* env);
