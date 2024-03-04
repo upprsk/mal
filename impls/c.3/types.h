@@ -11,6 +11,7 @@ typedef struct mal_value_string  mal_value_string_t;
 typedef struct mal_value_list    mal_value_list_t;
 typedef struct mal_value_hashmap mal_value_hashmap_t;
 typedef struct mal_value_fn      mal_value_fn_t;
+typedef struct mal_value_atom    mal_value_atom_t;
 
 typedef struct env env_t;
 
@@ -40,6 +41,7 @@ typedef enum __attribute__((packed)) mal_value_tag {
     MAL_HASHMAP,  // uses `hashmap`
     MAL_ENV,      // IS NOT A `mal_value`! But used by GC
     MAL_FN,       // uses `fn`
+    MAL_ATOM,     // uses `atom`
 } mal_value_tag_t;
 
 /// This is our value struct. It is just a 2 word (16 bytes on 64bit) containing
@@ -53,6 +55,7 @@ struct mal_value {
         mal_value_list_t*    list;
         mal_value_hashmap_t* hashmap;
         mal_value_fn_t*      fn;
+        mal_value_atom_t*    atom;
     } as;
 };
 
@@ -182,3 +185,15 @@ struct mal_value_fn {
 
 mal_value_fn_t* mal_fn_new(bool is_variadic, mal_value_list_da_t binds,
                            mal_value_t body, env_t* outer_env);
+// =============================================================================
+
+struct mal_value_atom {
+    mal_value_t value;
+};
+
+// =============================================================================
+
+typedef struct mal_eval_result {
+    mal_value_t value;
+    env_t*      env;
+} mal_eval_result_t;

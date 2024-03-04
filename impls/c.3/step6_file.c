@@ -96,11 +96,6 @@ mal_value_t mal_eval_def(mal_value_t args, env_t* env) {
     return value;
 }
 
-typedef struct mal_eval_result {
-    mal_value_t value;
-    env_t*      env;
-} mal_eval_result_t;
-
 #define mal_result_err() \
     (mal_eval_result_t) { .value = {.tag = MAL_ERR}, .env = NULL }
 
@@ -264,8 +259,50 @@ mal_value_t mal_eval_fn(mal_value_t args, env_t* env) {
                          .as.fn = mal_fn_new(is_variadic, da, body, env)};
 }
 
+mal_eval_result_t mal_eval_apply(mal_value_t fn_value, mal_value_list_t* args,
+                                 UNUSED env_t* env) {
+    if (fn_value.tag != MAL_FN) {
+        fprintf(stderr, "ERROR: Can't call non-function value\n");
+        return mal_result_err();
+    }
+
+    mal_value_fn_t* fn = fn_value.as.fn;
+
+    mal_value_list_da_t args_da = {0};
+    list_to_da(args, &args_da);
+
+    if (!fn->is_variadic && args_da.size != fn->binds.size) {
+        fprintf(stderr,
+                "ERROR: parameter count mismatch, function expected %zu "
+                "parameters, received %zu\n",
+                fn->binds.size, args_da.size);
+        return mal_result_err();
+    }
+
+    if (fn->is_variadic && args_da.size < fn->binds.size - 2) {
+        fprintf(stderr,
+                "ERROR: parameter count mismatch, variadic function "
+                "expected at east %zu parameters, received %zu\n",
+                fn->binds.size - 2, args_da.size);
+        return mal_result_err();
+    }
+
+    env_t* fn_env = tgc_alloc(&gc, sizeof(env_t));
+    env_init_from(fn_env, fn->outer_env, fn->binds.items, args_da.items,
+                  fn->binds.size, args_da.size);
+
+    da_free(&args_da);
+
+    return (mal_eval_result_t){.value = fn->body, .env = fn_env};
+}
+
 mal_value_t mal_eval(mal_value_t value, env_t* env) {
     while (true) {
+        // {
+        //     string_t s = pr_str(value, false);
+        //     fprintf(stderr, "mal_eval: %.*s\n", (int)s.size, s.items);
+        // }
+
         if (value.tag != MAL_LIST) return mal_eval_ast(value, env);
         if (value.as.list == NULL) return value;
 
@@ -307,40 +344,10 @@ mal_value_t mal_eval(mal_value_t value, env_t* env) {
         fn = args.as.list->value;
 
         if (fn.tag == MAL_BUILTIN) return fn.as.builtin.impl(env, args);
-        if (fn.tag != MAL_FN) {
-            fprintf(stderr, "ERROR: Can't call non-function value\n");
-            return (mal_value_t){.tag = MAL_ERR};
-        }
 
-        mal_value_list_da_t exprs = {0};
-        list_to_da(args.as.list->next, &exprs);
-
-        if (!fn.as.fn->is_variadic && exprs.size != fn.as.fn->binds.size) {
-            fprintf(stderr,
-                    "ERROR: parameter count mismatch, function expected %zu "
-                    "parameters, received %zu\n",
-                    fn.as.fn->binds.size, exprs.size);
-            da_free(&exprs);
-            return (mal_value_t){.tag = MAL_ERR};
-        }
-
-        if (fn.as.fn->is_variadic && exprs.size < fn.as.fn->binds.size - 2) {
-            fprintf(stderr,
-                    "ERROR: parameter count mismatch, variadic function "
-                    "expected at east %zu parameters, received %zu\n",
-                    fn.as.fn->binds.size - 2, exprs.size);
-            da_free(&exprs);
-            return (mal_value_t){.tag = MAL_ERR};
-        }
-
-        env_t* fn_env = env_new(NULL);
-        env_init_from(fn_env, fn.as.fn->outer_env, fn.as.fn->binds.items,
-                      exprs.items, fn.as.fn->binds.size, exprs.size);
-
-        da_free(&exprs);
-
-        value = fn.as.fn->body;
-        env = fn_env;
+        mal_eval_result_t r = mal_eval_apply(fn, args.as.list->next, env);
+        value = r.value;
+        env = r.env;
     }
 }
 
