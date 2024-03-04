@@ -230,6 +230,22 @@ static mal_value_t builtin_fn_list(UNUSED env_t* env, mal_value_t args) {
     return (mal_value_t){.tag = MAL_LIST, .as.list = out};
 }
 
+static mal_value_t builtin_fn_vec(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_t* arg = args.as.list->next;
+    if (arg == NULL) {
+        fprintf(stderr, "ERROR: Missing parameter for 'vec'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    if (arg->value.tag != MAL_VEC && arg->value.tag != MAL_LIST) {
+        fprintf(stderr,
+                "ERROR: invalid input to 'vec', expected list or vector\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    return (mal_value_t){.tag = MAL_VEC, .as.list = arg->value.as.list};
+}
+
 static mal_value_t builtin_fn_list_question(UNUSED env_t* env,
                                             mal_value_t   args) {
     mal_value_list_t* arg = args.as.list->next;
@@ -552,7 +568,8 @@ static mal_value_t builtin_fn_cons(UNUSED env_t* env, mal_value_t args) {
 
     if (da.size < 3) {
         fprintf(stderr,
-                "ERROR: Invalid size for 'cons', expected sequence of 3, found "
+                "ERROR: Invalid size for 'cons', expected sequence of 2 or 3, "
+                "found "
                 "%zu\n",
                 da.size);
         da_free(&da);
@@ -568,11 +585,7 @@ static mal_value_t builtin_fn_cons(UNUSED env_t* env, mal_value_t args) {
     }
 
     mal_value_list_t* lst = list_prepend(da.items[2].as.list, da.items[1]);
-
-    mal_value_t v = {
-        .tag = da.items[2].tag == MAL_LIST ? MAL_LIST : MAL_VEC,
-        .as.list = lst,
-    };
+    mal_value_t       v = {.tag = MAL_LIST, .as.list = lst};
 
     da_free(&da);
     return v;
@@ -631,6 +644,7 @@ void core_env_populate(env_t* env) {
         [24] = SYMBOL("swap!"),        //
         [25] = SYMBOL("cons"),         //
         [26] = SYMBOL("concat"),       //
+        [27] = SYMBOL("vec"),          //
     };
 #undef SYMBOL
 
@@ -667,6 +681,7 @@ void core_env_populate(env_t* env) {
         [24] = BUILTIN(swap),           //
         [25] = BUILTIN(cons),           //
         [26] = BUILTIN(concat),         //
+        [27] = BUILTIN(vec),            //
     };
 #undef BUILTIN
 

@@ -65,7 +65,7 @@ mal_value_t mal_eval_ast(mal_value_t ast, env_t* env) {
 
 mal_value_t mal_read(string_t s) { return read_str(s); }
 
-mal_value_t mal_eval_def(mal_value_t args, env_t* env) {
+static mal_value_t mal_eval_def(mal_value_t args, env_t* env) {
     mal_value_list_da_t da = {0};
     list_to_da(args.as.list, &da);
 
@@ -99,7 +99,7 @@ mal_value_t mal_eval_def(mal_value_t args, env_t* env) {
 #define mal_result_err() \
     (mal_eval_result_t) { .value = {.tag = MAL_ERR}, .env = NULL }
 
-mal_eval_result_t mal_eval_let(mal_value_t args, env_t* outer) {
+static mal_eval_result_t mal_eval_let(mal_value_t args, env_t* outer) {
     env_t* env = env_new(outer);
 
     mal_value_list_da_t da = {0};
@@ -154,7 +154,7 @@ mal_eval_result_t mal_eval_let(mal_value_t args, env_t* outer) {
     return v;
 }
 
-mal_value_t mal_eval_do(mal_value_t args, env_t* env) {
+static mal_value_t mal_eval_do(mal_value_t args, env_t* env) {
     if (args.as.list->next == NULL) {
         fprintf(stderr,
                 "ERROR: Missing parameter for 'do', expected at least one\n");
@@ -170,7 +170,7 @@ mal_value_t mal_eval_do(mal_value_t args, env_t* env) {
     return l->value;
 }
 
-mal_value_t mal_eval_if(mal_value_t args, env_t* env) {
+static mal_value_t mal_eval_if(mal_value_t args, env_t* env) {
     mal_value_list_da_t da = {0};
     list_to_da(args.as.list, &da);
 
@@ -207,7 +207,7 @@ mal_value_t mal_eval_if(mal_value_t args, env_t* env) {
     return (mal_value_t){.tag = MAL_NIL};
 }
 
-mal_value_t mal_eval_fn(mal_value_t args, env_t* env) {
+static mal_value_t mal_eval_fn(mal_value_t args, env_t* env) {
     assert(args.as.list != NULL);
 
     mal_value_list_da_t da = {0};
@@ -296,40 +296,175 @@ mal_eval_result_t mal_eval_apply(mal_value_t fn_value, mal_value_list_t* args,
     return (mal_eval_result_t){.value = fn->body, .env = fn_env};
 }
 
+static mal_value_t mal_quasiquote(mal_value_t arg) {
+    // If ast is a list ...
+    if (arg.tag == MAL_LIST || arg.tag == MAL_VEC) {
+        mal_value_list_t* arg_list = arg.as.list;
+        if (arg_list == NULL) {
+            if (arg.tag == MAL_VEC) {
+                mal_value_list_t* out =
+                    list_new((mal_value_t){.tag = MAL_LIST}, NULL);
+                out = list_prepend(
+                    out, (mal_value_t){
+                             .tag = MAL_SYMBOL,
+                             .as.string = mal_string_new_from_cstr("vec")});
+                return (mal_value_t){.tag = MAL_LIST, .as.list = out};
+            }
+
+            return arg;
+        }
+
+        // If ast is a list starting with the "unquote" symbol, return its
+        // second element.
+        if (arg.tag == MAL_LIST &&
+            mal_value_equal_cstr(arg_list->value, "unquote")) {
+            if (arg.as.list->next) return arg.as.list->next->value;
+
+            return (mal_value_t){.tag = MAL_NIL};
+        }
+
+        // If ast is a list failing previous test, the result will be a list
+        // populated by the following process:
+        //
+        // The result is initially an empty list. Iterate over each element elt
+        // of ast in reverse order:
+        // - If elt is a list starting with the "splice-unquote" symbol, replace
+        //   the current result with a list containing: the "concat" symbol, the
+        //   second element of elt, then the previous result.
+        // - Else replace the current result with a list containing: the "cons"
+        //   symbol, the result of calling quasiquote with elt as argument, then
+        //   the previous result.
+
+        // The result is initially an empty list.
+        mal_value_list_t* out = list_new((mal_value_t){.tag = MAL_LIST}, NULL);
+
+        // Iterate over each element elt of ast in reverse order:
+        mal_value_list_da_t ast = {0};
+        list_to_da(arg_list, &ast);
+        for (ssize_t i = ast.size - 1; i >= 0; i--) {
+            mal_value_t elt = ast.items[i];
+            // If elt is a list starting with the "splice-unquote" symbol,
+            if (elt.tag == MAL_LIST && elt.as.list != NULL &&
+                mal_value_equal_cstr(elt.as.list->value, "splice-unquote")) {
+                // replace the current result with a list containing (reversed):
+                // then the previous result.
+                mal_value_list_t* tmp = out;
+
+                // the second element of elt,
+                assert(elt.as.list->next != NULL);
+                tmp = list_prepend(tmp, elt.as.list->next->value);
+
+                // the "concat" symbol,
+                tmp = list_prepend(
+                    tmp, (mal_value_t){
+                             .tag = MAL_SYMBOL,
+                             .as.string = mal_string_new_from_cstr("concat")});
+
+                out = list_new((mal_value_t){.tag = MAL_LIST, .as.list = tmp},
+                               NULL);
+                continue;
+            }
+
+            // Else replace the current result with a list containing
+            // (reversed): then the previous result.
+            mal_value_list_t* tmp = out;
+
+            // the result of calling quasiquote with elt as argument
+            tmp = list_prepend(tmp, mal_quasiquote(elt));
+
+            // the "cons" symbol
+            tmp = list_prepend(
+                tmp,
+                (mal_value_t){.tag = MAL_SYMBOL,
+                              .as.string = mal_string_new_from_cstr("cons")});
+
+            out =
+                list_new((mal_value_t){.tag = MAL_LIST, .as.list = tmp}, NULL);
+        }
+
+        da_free(&ast);
+        if (arg.tag == MAL_VEC) {
+            out = list_prepend(
+                out,
+                (mal_value_t){.tag = MAL_SYMBOL,
+                              .as.string = mal_string_new_from_cstr("vec")});
+            return (mal_value_t){.tag = MAL_LIST, .as.list = out};
+        }
+
+        return out->value;
+    }
+
+    if (arg.tag == MAL_HASHMAP || arg.tag == MAL_SYMBOL) {
+        mal_value_list_t* tmp = NULL;
+        tmp = list_prepend(tmp, arg);
+        tmp = list_prepend(
+            tmp, (mal_value_t){.tag = MAL_SYMBOL,
+                               .as.string = mal_string_new_from_cstr("quote")});
+
+        return (mal_value_t){.tag = MAL_LIST, .as.list = tmp};
+    }
+
+    return arg;
+}
+
 mal_value_t mal_eval(mal_value_t value, env_t* env) {
     while (true) {
         if (value.tag != MAL_LIST) return mal_eval_ast(value, env);
         if (value.as.list == NULL) return value;
 
         mal_value_t fn = value.as.list->value;
-        if (fn.tag == MAL_SYMBOL && fn.as.string->size == 4 &&
-            memcmp(fn.as.string->chars, "def!", fn.as.string->size) == 0) {
+        if (mal_value_equal_cstr(fn, "def!")) {
             return mal_eval_def(value, env);
         }
 
-        if (fn.tag == MAL_SYMBOL && fn.as.string->size == 4 &&
-            memcmp(fn.as.string->chars, "let*", fn.as.string->size) == 0) {
+        if (mal_value_equal_cstr(fn, "let*")) {
             mal_eval_result_t r = mal_eval_let(value, env);
             env = r.env;
             value = r.value;
             continue;
         }
 
-        if (fn.tag == MAL_SYMBOL && fn.as.string->size == 2 &&
-            memcmp(fn.as.string->chars, "do", fn.as.string->size) == 0) {
+        if (mal_value_equal_cstr(fn, "do")) {
             value = mal_eval_do(value, env);
             continue;
         }
 
-        if (fn.tag == MAL_SYMBOL && fn.as.string->size == 2 &&
-            memcmp(fn.as.string->chars, "if", fn.as.string->size) == 0) {
+        if (mal_value_equal_cstr(fn, "if")) {
             value = mal_eval_if(value, env);
             continue;
         }
 
-        if (fn.tag == MAL_SYMBOL && fn.as.string->size == 3 &&
-            memcmp(fn.as.string->chars, "fn*", fn.as.string->size) == 0) {
+        if (mal_value_equal_cstr(fn, "fn*")) {
             return mal_eval_fn(value, env);
+        }
+
+        if (mal_value_equal_cstr(fn, "quote")) {
+            if (value.as.list->next == NULL) {
+                fprintf(stderr, "ERROR: Missing argument for 'quote'\n");
+                return (mal_value_t){.tag = MAL_ERR};
+            }
+
+            return value.as.list->next->value;
+        }
+
+        if (mal_value_equal_cstr(fn, "quasiquoteexpand")) {
+            if (value.as.list->next == NULL) {
+                fprintf(stderr,
+                        "ERROR: Missing argument for 'quasiquoteexpand'\n");
+                return (mal_value_t){.tag = MAL_ERR};
+            }
+
+            return mal_quasiquote(value.as.list->next->value);
+        }
+
+        if (mal_value_equal_cstr(fn, "quasiquote")) {
+            if (value.as.list->next == NULL) {
+                fprintf(stderr, "ERROR: Missing argument for 'quasiquote'\n");
+                return (mal_value_t){.tag = MAL_ERR};
+            }
+
+            value = mal_quasiquote(value.as.list->next->value);
+            continue;
         }
 
         mal_value_t args = mal_eval_ast(value, env);

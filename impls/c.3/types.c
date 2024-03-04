@@ -63,6 +63,12 @@ void gc_add_obj(mal_value_tag_t tag, gc_obj_t* obj) {
 
 // =============================================================================
 
+bool mal_string_equal_cstr(mal_value_string_t* s, char const* cstr) {
+    size_t len = strlen(cstr);
+
+    return s->size == len && memcmp(s->chars, cstr, len) == 0;
+}
+
 mal_value_string_t* mal_string_new(char const* chars, size_t size) {
     mal_value_string_t* mstr = gc_alloc(sizeof(mal_value_string_t) + size + 1);
 

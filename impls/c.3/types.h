@@ -103,6 +103,13 @@ struct mal_value_string {
     char   chars[];
 };
 
+bool mal_string_equal_cstr(mal_value_string_t* s, char const* cstr);
+
+static inline bool mal_value_equal_cstr(mal_value_t v, char const* cstr) {
+    return (v.tag == MAL_STRING || v.tag == MAL_SYMBOL) &&
+           mal_string_equal_cstr(v.as.string, cstr);
+}
+
 mal_value_string_t* mal_string_new(char const* chars, size_t size);
 
 mal_value_string_t* mal_string_new_sized(size_t size);
