@@ -57,11 +57,13 @@
                 "', expected sequence of 3, found "                          \
                 "%zu\n",                                                     \
                 da.size);                                                    \
+        da_free(&da);                                                        \
         return (mal_value_t){.tag = MAL_ERR};                                \
     }                                                                        \
     if (da.items[1].tag != MAL_NUM) {                                        \
         fprintf(stderr,                                                      \
                 "ERROR: invalid input to '" #op "', expected number\n");     \
+        da_free(&da);                                                        \
         return (mal_value_t){.tag = MAL_ERR};                                \
     }                                                                        \
     double acc = da.items[1].as.num;                                         \
@@ -69,6 +71,7 @@
         if (da.items[i].tag != MAL_NUM) {                                    \
             fprintf(stderr,                                                  \
                     "ERROR: invalid input to '" #op "', expected number\n"); \
+            da_free(&da);                                                    \
             return (mal_value_t){.tag = MAL_ERR};                            \
         }                                                                    \
                                                                              \
@@ -543,6 +546,60 @@ static mal_value_t builtin_fn_swap(UNUSED env_t* env, mal_value_t args) {
     return arg->value.as.atom->value;
 }
 
+static mal_value_t builtin_fn_cons(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_da_t da = {0};
+    list_to_da((args).as.list, &da);
+
+    if (da.size < 3) {
+        fprintf(stderr,
+                "ERROR: Invalid size for 'cons', expected sequence of 3, found "
+                "%zu\n",
+                da.size);
+        da_free(&da);
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    if (da.items[2].tag != MAL_LIST && da.items[2].tag != MAL_VEC) {
+        fprintf(stderr,
+                "ERROR: Invalid type for 'cons', expected a list as second "
+                "parameter.\n");
+        da_free(&da);
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    mal_value_list_t* lst = list_prepend(da.items[2].as.list, da.items[1]);
+
+    mal_value_t v = {
+        .tag = da.items[2].tag == MAL_LIST ? MAL_LIST : MAL_VEC,
+        .as.list = lst,
+    };
+
+    da_free(&da);
+    return v;
+}
+
+static mal_value_t builtin_fn_concat(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_t* lst = NULL;
+
+    for (mal_value_list_t* arg = args.as.list->next; arg != NULL;
+         arg = arg->next) {
+        if (arg->value.tag != MAL_LIST && arg->value.tag != MAL_VEC) {
+            fprintf(stderr,
+                    "ERROR: Invalid type for 'concat', expected just lists and "
+                    "vectors as parameters.\n");
+            return (mal_value_t){.tag = MAL_ERR};
+        }
+
+        for (mal_value_list_t* inner = arg->value.as.list; inner != NULL;
+             inner = inner->next) {
+            lst = list_prepend(lst, inner->value);
+        }
+    }
+
+    mal_value_t v = {.tag = MAL_LIST, .as.list = list_reverse(lst)};
+    return v;
+}
+
 void core_env_populate(env_t* env) {
 #define SYMBOL(s) {.tag = MAL_SYMBOL, .as.string = mal_string_new_from_cstr(s)}
 
@@ -572,6 +629,8 @@ void core_env_populate(env_t* env) {
         [22] = SYMBOL("deref"),        //
         [23] = SYMBOL("reset!"),       //
         [24] = SYMBOL("swap!"),        //
+        [25] = SYMBOL("cons"),         //
+        [26] = SYMBOL("concat"),       //
     };
 #undef SYMBOL
 
@@ -606,6 +665,8 @@ void core_env_populate(env_t* env) {
         [22] = BUILTIN(deref),          //
         [23] = BUILTIN(reset),          //
         [24] = BUILTIN(swap),           //
+        [25] = BUILTIN(cons),           //
+        [26] = BUILTIN(concat),         //
     };
 #undef BUILTIN
 

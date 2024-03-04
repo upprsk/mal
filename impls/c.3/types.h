@@ -137,6 +137,8 @@ mal_value_list_t* list_append(mal_value_list_t* l, mal_value_t value);
 /// Get the last element of the list.
 mal_value_list_t* list_end(mal_value_list_t* l);
 
+mal_value_list_t* list_reverse(mal_value_list_t* l);
+
 typedef struct mal_value_list_da {
     mal_value_t* items;
     size_t       size;

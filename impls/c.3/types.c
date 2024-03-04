@@ -196,6 +196,20 @@ mal_value_list_t* list_end(mal_value_list_t* l) {
     return l;
 }
 
+mal_value_list_t* list_reverse(mal_value_list_t* l) {
+    mal_value_list_t* prev = NULL;
+    mal_value_list_t* curr = l;
+
+    while (curr != NULL) {
+        mal_value_list_t* next = curr->next;
+        curr->next = prev;
+        prev = curr;
+        curr = next;
+    }
+
+    return prev;
+}
+
 void list_to_da(mal_value_list_t* list, mal_value_list_da_t* out) {
     for (mal_value_list_t* l = list; l != NULL; l = l->next) {
         // NOLINTNEXTLINE(bugprone-suspicious-realloc-usage)
