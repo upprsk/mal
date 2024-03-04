@@ -188,8 +188,11 @@ mal_value_fn_t* mal_fn_new(bool is_variadic, mal_value_list_da_t binds,
 // =============================================================================
 
 struct mal_value_atom {
+    gc_obj_t    obj;
     mal_value_t value;
 };
+
+mal_value_atom_t* mal_atom_new(mal_value_t value);
 
 // =============================================================================
 

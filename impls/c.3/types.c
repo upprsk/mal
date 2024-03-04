@@ -31,7 +31,8 @@ void gc_deinit() {
             case MAL_SYMBOL:
             case MAL_STRING:
             case MAL_VEC:
-            case MAL_LIST: break;
+            case MAL_LIST:
+            case MAL_ATOM: break;
             case MAL_HASHMAP: {
                 mal_value_hashmap_t* hm = (mal_value_hashmap_t*)obj;
                 free(hm->entries);
@@ -297,4 +298,13 @@ mal_value_fn_t* mal_fn_new(bool is_variadic, mal_value_list_da_t binds,
     gc_add_obj(MAL_FN, &fn->obj);
 
     return fn;
+}
+
+mal_value_atom_t* mal_atom_new(mal_value_t value) {
+    mal_value_atom_t* atom = gc_alloc(sizeof(mal_value_atom_t));
+    *atom = (mal_value_atom_t){.value = value};
+
+    gc_add_obj(MAL_ATOM, &atom->obj);
+
+    return atom;
 }

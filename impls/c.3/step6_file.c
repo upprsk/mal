@@ -287,7 +287,7 @@ mal_eval_result_t mal_eval_apply(mal_value_t fn_value, mal_value_list_t* args,
         return mal_result_err();
     }
 
-    env_t* fn_env = tgc_alloc(&gc, sizeof(env_t));
+    env_t* fn_env = env_new(NULL);
     env_init_from(fn_env, fn->outer_env, fn->binds.items, args_da.items,
                   fn->binds.size, args_da.size);
 
@@ -298,11 +298,6 @@ mal_eval_result_t mal_eval_apply(mal_value_t fn_value, mal_value_list_t* args,
 
 mal_value_t mal_eval(mal_value_t value, env_t* env) {
     while (true) {
-        // {
-        //     string_t s = pr_str(value, false);
-        //     fprintf(stderr, "mal_eval: %.*s\n", (int)s.size, s.items);
-        // }
-
         if (value.tag != MAL_LIST) return mal_eval_ast(value, env);
         if (value.as.list == NULL) return value;
 
@@ -407,13 +402,78 @@ int actual_main(void) {
 int main(UNUSED int argc, UNUSED char** argv) {
     gc_init();
 
-    // this is some compiler black magic to make shure that this call is _never_
-    // inlined, an as such our GC will work. (TGC depends on the allocations
-    // beeing one call deep).
-    int (*volatile func)(void) = actual_main;
-    int r = func();
+    env_t env = {0};
+
+    {
+        int start_index = argc > 1 ? 2 : 1;
+
+        mal_value_list_t* argv_lst = NULL;
+        for (int i = start_index; i < argc; i++) {
+            mal_value_t arg = {.tag = MAL_STRING,
+                               .as.string = mal_string_new_from_cstr(argv[i])};
+            argv_lst = list_append(argv_lst, arg);
+        }
+
+        env_set(&env,
+                (mal_value_t){.tag = MAL_SYMBOL,
+                              .as.string = mal_string_new_from_cstr("*ARGV*")},
+                (mal_value_t){.tag = MAL_LIST, .as.list = argv_lst});
+    }
+
+    core_env_populate(&env);
+
+    {
+        static char const not_src[] = "(def! not (fn* (a) (if a false true)))";
+
+        mal_value_t r =
+            mal_eval(mal_read(string_init_with_cstr((char*)not_src)), &env);
+        assert(r.tag != MAL_ERR);
+    }
+
+    {
+        static char const not_src[] =
+            "(def! load-file"
+            "    (fn* (f) (eval (read-string"
+            "        (str \"(do \" (slurp f) \"\nnil)\")))))";
+
+        mal_value_t r =
+            mal_eval(mal_read(string_init_with_cstr((char*)not_src)), &env);
+        assert(r.tag != MAL_ERR);
+    }
+
+    if (argc > 1) {
+        mal_value_string_t* filename = mal_string_new_from_cstr(argv[1]);
+
+        mal_value_list_t* lst = list_new(
+            (mal_value_t){.tag = MAL_SYMBOL,
+                          .as.string = mal_string_new_from_cstr("load-file")},
+            NULL);
+        lst = list_append(
+            lst, (mal_value_t){.tag = MAL_STRING, .as.string = filename});
+
+        mal_value_t r =
+            mal_eval((mal_value_t){.tag = MAL_LIST, .as.list = lst}, &env);
+        assert(r.tag != MAL_ERR);
+    } else {
+        while (true) {
+            fprintf(stdout, "user> ");
+            fflush(stdout);
+
+            static char buf[1024] = {0};
+            ssize_t     n = read(STDIN_FILENO, buf, sizeof(buf));
+            if (n <= 0) break;
+
+            string_t line = da_init_fixed(buf, n - 1);
+
+            mal_value_string_t* result = mal_rep(line, &env);
+            if (result && result->size > 0) printf("%s\n", result->chars);
+        }
+    }
+
+    // :)
+    free(env.data.entries);
 
     gc_deinit();
 
-    return r;
+    return 0;
 }

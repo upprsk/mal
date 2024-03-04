@@ -135,21 +135,24 @@ mal_value_string_t* pr_str(mal_value_t value, bool print_readably) {
         case MAL_VEC: return pr_str_sequence(value, '[', ']', print_readably);
         case MAL_LIST: return pr_str_sequence(value, '(', ')', print_readably);
         case MAL_HASHMAP: return pr_str_hashmap(value, print_readably);
-        case MAL_FN: return string_init_with_cstr("#<function>"); break;
+        case MAL_FN: return mal_string_new_from_cstr("#<function>"); break;
         case MAL_ATOM: {
             string_t s = {0};
 
             string_t atom_prefix = string_init_with_cstr("(atom ");
             da_concat(&s, &atom_prefix);
 
-            string_t inner = pr_str(value.as.atom->value, print_readably);
-            da_concat(&s, &inner);
+            mal_value_string_t* inner =
+                pr_str(value.as.atom->value, print_readably);
+            for (size_t i = 0; i < inner->size; i++) {
+                da_append(&s, inner->chars[i]);
+            }
 
             da_append(&s, ')');
 
-            return s;
+            return mal_string_new(s.items, s.size);
         }
-        case MAL_ERR: return string_init_with_cstr("ERROR"); break;
+        case MAL_ERR: return mal_string_new_from_cstr("ERROR"); break;
         case MAL_ENV: assert(false && "Invalid tag in pr_str: env");
     }
 

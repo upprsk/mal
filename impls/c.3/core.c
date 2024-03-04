@@ -438,9 +438,7 @@ static mal_value_t builtin_fn_atom(UNUSED env_t* env, mal_value_t args) {
         return (mal_value_t){.tag = MAL_ERR};
     }
 
-    mal_value_atom_t* atom = tgc_alloc(&gc, sizeof(mal_value_atom_t));
-    *atom = (mal_value_atom_t){.value = arg->value};
-
+    mal_value_atom_t* atom = mal_atom_new(arg->value);
     return (mal_value_t){.tag = MAL_ATOM, .as.atom = atom};
 }
 
