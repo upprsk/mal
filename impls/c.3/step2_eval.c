@@ -7,18 +7,18 @@
 
 #include "common.h"
 #include "da.h"
+#include "env.h"
 #include "printer.h"
 #include "reader.h"
-#include "tgc.h"
 #include "types.h"
 
-mal_value_t mal_eval(mal_value_t value, mal_value_hashmap_t* env);
+mal_value_t mal_eval(mal_value_t value, env_t* env);
 
-mal_value_t mal_eval_ast(mal_value_t ast, mal_value_hashmap_t* env) {
+mal_value_t mal_eval_ast(mal_value_t ast, env_t* env) {
     switch (ast.tag) {
         case MAL_SYMBOL: {
             mal_value_t value = {0};
-            if (!mal_hashmap_get(env, ast, &value)) {
+            if (!mal_hashmap_get(&env->data, ast, &value)) {
                 fprintf(stderr, "ERROR: Undefined symbol: `%.*s`\n",
                         (int)ast.as.string->size, ast.as.string->chars);
 
@@ -40,8 +40,7 @@ mal_value_t mal_eval_ast(mal_value_t ast, mal_value_hashmap_t* env) {
             return (mal_value_t){.tag = ast.tag, .as.list = out};
         }
         case MAL_HASHMAP: {
-            mal_value_hashmap_t* out =
-                tgc_alloc(&gc, sizeof(mal_value_hashmap_t));
+            mal_value_hashmap_t* out = mal_hashmap_new();
 
             mal_value_hashmap_t* hm = ast.as.hashmap;
             for (size_t i = 0; i < hm->capacity; i++) {
@@ -62,7 +61,7 @@ mal_value_t mal_eval_ast(mal_value_t ast, mal_value_hashmap_t* env) {
 
 mal_value_t mal_read(string_t s) { return read_str(s); }
 
-mal_value_t mal_eval(mal_value_t value, mal_value_hashmap_t* env) {
+mal_value_t mal_eval(mal_value_t value, env_t* env) {
     if (value.tag != MAL_LIST) return mal_eval_ast(value, env);
 
     if (value.as.list == NULL) return value;
@@ -81,16 +80,16 @@ mal_value_t mal_eval(mal_value_t value, mal_value_hashmap_t* env) {
     return fn.as.builtin.impl(env, args);
 }
 
-string_t mal_print(mal_value_t value) { return pr_str(value, true); }
+mal_value_string_t* mal_print(mal_value_t value) { return pr_str(value, true); }
 
-string_t mal_rep(string_t s, mal_value_hashmap_t* env) {
+mal_value_string_t* mal_rep(string_t s, env_t* env) {
     mal_value_t val = mal_eval(mal_read(s), env);
-    if (val.tag == MAL_ERR) return (string_t){0};
+    if (val.tag == MAL_ERR) return NULL;
 
     return mal_print(val);
 }
 
-mal_value_t builtin_fn_add(UNUSED mal_value_hashmap_t* env, mal_value_t args) {
+mal_value_t builtin_fn_add(UNUSED env_t* env, mal_value_t args) {
     assert(is_valid_sequence(args));
 
     mal_value_list_da_t da = {0};
@@ -119,7 +118,7 @@ mal_value_t builtin_fn_add(UNUSED mal_value_hashmap_t* env, mal_value_t args) {
     return (mal_value_t){.tag = MAL_NUM, .as.num = acc};
 }
 
-mal_value_t builtin_fn_sub(UNUSED mal_value_hashmap_t* env, mal_value_t args) {
+mal_value_t builtin_fn_sub(UNUSED env_t* env, mal_value_t args) {
     assert(is_valid_sequence(args));
 
     mal_value_list_da_t da = {0};
@@ -148,7 +147,7 @@ mal_value_t builtin_fn_sub(UNUSED mal_value_hashmap_t* env, mal_value_t args) {
     return (mal_value_t){.tag = MAL_NUM, .as.num = acc};
 }
 
-mal_value_t builtin_fn_div(UNUSED mal_value_hashmap_t* env, mal_value_t args) {
+mal_value_t builtin_fn_div(UNUSED env_t* env, mal_value_t args) {
     assert(is_valid_sequence(args));
 
     mal_value_list_da_t da = {0};
@@ -177,7 +176,7 @@ mal_value_t builtin_fn_div(UNUSED mal_value_hashmap_t* env, mal_value_t args) {
     return (mal_value_t){.tag = MAL_NUM, .as.num = acc};
 }
 
-mal_value_t builtin_fn_mul(UNUSED mal_value_hashmap_t* env, mal_value_t args) {
+mal_value_t builtin_fn_mul(UNUSED env_t* env, mal_value_t args) {
     assert(is_valid_sequence(args));
 
     mal_value_list_da_t da = {0};
@@ -207,7 +206,7 @@ mal_value_t builtin_fn_mul(UNUSED mal_value_hashmap_t* env, mal_value_t args) {
 }
 
 int actual_main(void) {
-    mal_value_hashmap_t env = {0};
+    env_t env = {0};
 
     mal_value_t keys[] = {
         {.tag = MAL_SYMBOL, .as.string = mal_string_new_from_cstr("+")},
@@ -227,7 +226,7 @@ int actual_main(void) {
                   "keys and values should have same size");
 
     for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
-        mal_hashmap_put(&env, keys[i], values[i]);
+        mal_hashmap_put(&env.data, keys[i], values[i]);
     }
 
     while (true) {
@@ -240,23 +239,25 @@ int actual_main(void) {
 
         string_t line = da_init_fixed(buf, n - 1);
 
-        string_t result = mal_rep(line, &env);
-        if (result.size > 0) printf("%.*s\n", (int)result.size, result.items);
+        mal_value_string_t* result = mal_rep(line, &env);
+        if (result && result->size > 0) printf("%s\n", result->chars);
     }
 
     return 0;
 }
 
-int main(int argc, UNUSED char** argv) {
-    tgc_start(&gc, &argc);
+int main(UNUSED int argc, UNUSED char** argv) {
+    gc_init();
 
     // this is some compiler black magic to make shure that this call is _never_
     // inlined, an as such our GC will work. (TGC depends on the allocations
     // beeing one call deep).
+    //
+    // NOTE: No longer needed
     int (*volatile func)(void) = actual_main;
     int r = func();
 
-    tgc_stop(&gc);
+    gc_deinit();
 
     return r;
 }
