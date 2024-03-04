@@ -1,10 +1,10 @@
 CC = gcc
 
-CFLAGS = -std=c11 -g -Wall -Wextra
+CFLAGS = -std=c11 -g -Wall -Wextra -Werror
 
 LIBS =
-LIBS_SRC = tgc.c
-LIBS_HEADERS = tgc.h
+LIBS_SRC =
+LIBS_HEADERS =
 
 S0_HEADERS = da.h da_config.h common.h
 S0_SRC = step0_repl.c $(LIBS_SRC)

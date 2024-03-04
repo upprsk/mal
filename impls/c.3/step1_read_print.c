@@ -8,21 +8,22 @@
 #include "da.h"
 #include "printer.h"
 #include "reader.h"
-#include "tgc.h"
 #include "types.h"
 
-mal_value_t mal_read(string_t s) { return read_str(s); }
-mal_value_t mal_eval(mal_value_t value) { return value; }
-string_t    mal_print(mal_value_t value) { return pr_str(value, true); }
+mal_value_t         mal_read(string_t s) { return read_str(s); }
+mal_value_t         mal_eval(mal_value_t value) { return value; }
+mal_value_string_t* mal_print(mal_value_t value) { return pr_str(value, true); }
 
-string_t mal_rep(string_t s) {
+mal_value_string_t* mal_rep(string_t s) {
     mal_value_t val = mal_eval(mal_read(s));
-    if (val.tag == MAL_ERR) return (string_t){0};
+    if (val.tag == MAL_ERR) return NULL;
 
     return mal_print(val);
 }
 
-int actual_main(void) {
+int main(UNUSED int argc, UNUSED char** argv) {
+    gc_init();
+
     while (true) {
         fprintf(stdout, "user> ");
         fflush(stdout);
@@ -33,23 +34,11 @@ int actual_main(void) {
 
         string_t line = da_init_fixed(buf, n - 1);
 
-        string_t result = mal_rep(line);
-        if (result.size > 0) printf("%.*s\n", (int)result.size, result.items);
+        mal_value_string_t* result = mal_rep(line);
+        if (result && result->size > 0) printf("%s\n", result->chars);
     }
 
+    gc_deinit();
+
     return 0;
-}
-
-int main(int argc, UNUSED char** argv) {
-    tgc_start(&gc, &argc);
-
-    // this is some compiler black magic to make shure that this call is _never_
-    // inlined, an as such our GC will work. (TGC depends on the allocations
-    // beeing one call deep).
-    int (*volatile func)(void) = actual_main;
-    int r = func();
-
-    tgc_stop(&gc);
-
-    return r;
 }

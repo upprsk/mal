@@ -3,20 +3,59 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "common.h"
 #include "da.h"
-#include "tgc.h"
+
+typedef struct gc {
+    gc_obj_t* objs;
+} gc_t;
+
+static gc_t gc = {0};
+
+void gc_init() { gc = (gc_t){0}; }
+
+void gc_deinit() {
+    for (gc_obj_t* obj = gc.objs; obj != NULL;) {
+        gc_obj_t* o = obj;
+        obj = obj->next;
+
+        free(o);
+    }
+}
+
+void gc_add_obj(gc_obj_t* obj) {
+    obj->next = gc.objs;
+    obj->mark = GC_MARK_NONE;
+    gc.objs = obj;
+}
+
+// =============================================================================
 
 mal_value_string_t* mal_string_new(char const* chars, size_t size) {
-    mal_value_string_t* mstr =
-        tgc_calloc(&gc, sizeof(mal_value_string_t) + size + 1, sizeof(char));
+    mal_value_string_t* mstr = gc_alloc(sizeof(mal_value_string_t) + size + 1);
 
-    *mstr =
-        (mal_value_string_t){.size = size, .hash = fnv_1a_hash(chars, size)};
+    *mstr = (mal_value_string_t){
+        .size = size,
+        .hash = fnv_1a_hash(chars, size),
+    };
     memcpy(mstr->chars, chars, size);
     mstr->chars[size] = 0;  // null terminate
+
+    gc_add_obj(&mstr->obj);
+
+    return mstr;
+}
+
+mal_value_string_t* mal_string_new_sized(size_t size) {
+    mal_value_string_t* mstr = gc_alloc(sizeof(mal_value_string_t) + size + 1);
+
+    *mstr = (mal_value_string_t){.size = size};
+    mstr->chars[size] = 0;  // null terminate
+
+    gc_add_obj(&mstr->obj);
 
     return mstr;
 }
@@ -26,7 +65,7 @@ mal_value_string_t* mal_string_new_from_cstr(char const* chars) {
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-string_t mal_string_escape_direct(mal_value_string_t* s) {
+mal_value_string_t* mal_string_escape(mal_value_string_t* s) {
     string_t out = {0};
 
     for (size_t i = 0; i < s->size; i++) {
@@ -45,11 +84,14 @@ string_t mal_string_escape_direct(mal_value_string_t* s) {
         }
     }
 
-    return out;
+    mal_value_string_t* out_str = mal_string_new(out.items, out.size);
+    da_free(&out);
+
+    return out_str;
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-string_t mal_string_unescape_direct(mal_value_string_t* s) {
+mal_value_string_t* mal_string_unescape(mal_value_string_t* s) {
     string_t out = {0};
     da_append(&out, '"');
 
@@ -81,45 +123,32 @@ string_t mal_string_unescape_direct(mal_value_string_t* s) {
 
     da_append(&out, '"');
 
-    return out;
-}
-
-mal_value_string_t* mal_string_escape(mal_value_string_t* s) {
-    string_t out = mal_string_escape_direct(s);
-    da_append(&out, 0);
-
-    mal_value_string_t* mstr = mal_string_new(out.items, out.size - 1);
+    mal_value_string_t* out_str = mal_string_new(out.items, out.size);
     da_free(&out);
 
-    return mstr;
-}
-
-mal_value_string_t* mal_string_unescape(mal_value_string_t* s) {
-    string_t out = mal_string_unescape_direct(s);
-    da_append(&out, 0);
-
-    mal_value_string_t* mstr = mal_string_new(out.items, out.size - 1);
-    da_free(&out);
-
-    return mstr;
+    return out_str;
 }
 
 // =============================================================================
 
-mal_value_list_t* list_prepend(mal_value_list_t* l, mal_value_t value) {
-    mal_value_list_t* new_node = tgc_alloc(&gc, sizeof(mal_value_list_t));
+mal_value_list_t* list_new(mal_value_t value, mal_value_list_t* next) {
+    mal_value_list_t* new_node = gc_alloc(sizeof(mal_value_list_t));
 
-    // Put the value in, and make the rest of the list the next element.
-    *new_node = (mal_value_list_t){.value = value, .next = l};
+    *new_node = (mal_value_list_t){.value = value, .next = next};
+
+    gc_add_obj(&new_node->obj);
 
     return new_node;
+}
+
+mal_value_list_t* list_prepend(mal_value_list_t* l, mal_value_t value) {
+    return list_new(value, l);
 }
 
 mal_value_list_t* list_append(mal_value_list_t* l, mal_value_t value) {
     mal_value_list_t* end = list_end(l);
 
-    mal_value_list_t* new_node = tgc_alloc(&gc, sizeof(mal_value_list_t));
-    *new_node = (mal_value_list_t){.value = value};
+    mal_value_list_t* new_node = list_new(value, NULL);
 
     if (end == NULL) {
         l = new_node;
@@ -163,7 +192,7 @@ static mal_hashmap_entry_t* hashmap_find_entry(mal_hashmap_entry_t* entries,
 
 static void hashmap_adjust_capacity(mal_value_hashmap_t* hm, size_t capacity) {
     mal_hashmap_entry_t* entries =
-        tgc_calloc(&gc, capacity, sizeof(mal_hashmap_entry_t));
+        calloc(capacity, sizeof(mal_hashmap_entry_t));
     for (size_t i = 0; i < capacity; i++) {
         entries->key = (mal_value_t){0};
         entries->value = (mal_value_t){.tag = MAL_NIL};
@@ -179,9 +208,18 @@ static void hashmap_adjust_capacity(mal_value_hashmap_t* hm, size_t capacity) {
         dest->value = entry->value;
     }
 
-    tgc_free(&gc, hm->entries);
+    free(hm->entries);
     hm->entries = entries;
     hm->capacity = capacity;
+}
+
+mal_value_hashmap_t* mal_hashmap_new() {
+    mal_value_hashmap_t* hm = gc_alloc(sizeof(mal_value_hashmap_t));
+    *hm = (mal_value_hashmap_t){0};
+
+    gc_add_obj(&hm->obj);
+
+    return hm;
 }
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
@@ -218,5 +256,3 @@ bool mal_hashmap_get(mal_value_hashmap_t const* hm, mal_value_t key,
     *value = entry->value;
     return true;
 }
-
-tgc_t gc;

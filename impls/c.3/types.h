@@ -3,7 +3,6 @@
 #include <stdbool.h>
 
 #include "common.h"
-#include "tgc.h"
 
 // fwd
 typedef struct mal_value         mal_value_t;
@@ -67,7 +66,33 @@ static inline bool is_valid_hashmap_key(mal_value_t value) {
 
 // =============================================================================
 
+typedef enum gc_mark {
+    GC_MARK_NONE,
+    GC_MARK_REACHED,
+} gc_mark_t;
+
+typedef struct gc_obj {
+    struct gc_obj* next;
+    gc_mark_t      mark;
+} gc_obj_t;
+
+#define gc_alloc(...) malloc(__VA_ARGS__)
+#define gc_free(...)  free(__VA_ARGS__)
+
+/// Initialize the garbage collector.
+void gc_init();
+
+/// Free all of the garbage collected objects.
+void gc_deinit();
+
+/// Add an object to the garbage collector.
+void gc_add_obj(gc_obj_t* obj);
+
+// =============================================================================
+
 struct mal_value_string {
+    gc_obj_t obj;
+
     size_t size;
     size_t hash;
     char   chars[];
@@ -75,13 +100,9 @@ struct mal_value_string {
 
 mal_value_string_t* mal_string_new(char const* chars, size_t size);
 
+mal_value_string_t* mal_string_new_sized(size_t size);
+
 mal_value_string_t* mal_string_new_from_cstr(char const* chars);
-
-/// Given a string, process escape codes into their values.
-string_t mal_string_escape_direct(mal_value_string_t* s);
-
-/// Given a string, process escapable characters into their escaped values.
-string_t mal_string_unescape_direct(mal_value_string_t* s);
 
 /// Given a string, process escape codes into their values.
 mal_value_string_t* mal_string_escape(mal_value_string_t* s);
@@ -93,9 +114,13 @@ mal_value_string_t* mal_string_unescape(mal_value_string_t* s);
 
 /// A singly linked list.
 struct mal_value_list {
-    mal_value_t            value;
+    gc_obj_t obj;
+
     struct mal_value_list* next;
+    mal_value_t            value;
 };
+
+mal_value_list_t* list_new(mal_value_t value, mal_value_list_t* next);
 
 /// Prepend an item to the start of the list. Returns the new list with the
 /// added element.
@@ -125,10 +150,14 @@ typedef struct mal_hashmap_entry {
 } mal_hashmap_entry_t;
 
 struct mal_value_hashmap {
-    mal_hashmap_entry_t* entries;
+    gc_obj_t obj;
+
     size_t               size;
     size_t               capacity;
+    mal_hashmap_entry_t* entries;
 };
+
+mal_value_hashmap_t* mal_hashmap_new();
 
 // TODO: Add ways to remove from the hasmap map
 
@@ -140,14 +169,11 @@ bool mal_hashmap_get(mal_value_hashmap_t const* hm, mal_value_t key,
 // =============================================================================
 
 struct mal_value_fn {
+    gc_obj_t obj;
+
     bool is_variadic;
 
     mal_value_list_da_t binds;
     mal_value_t         body;
     env_t*              outer_env;
 };
-
-// =============================================================================
-
-/// hehe. This is our global garbage collector allocator.
-extern tgc_t gc;

@@ -3,11 +3,11 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "common.h"
 #include "da.h"
-#include "tgc.h"
 #include "types.h"
 
 /// Dynamic array for tokens
@@ -18,8 +18,8 @@ typedef struct vector_str {
 } vector_str_t;
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-static string_t pr_str_sequence(mal_value_t value, char open, char close,
-                                bool print_readably) {
+static mal_value_string_t* pr_str_sequence(mal_value_t value, char open,
+                                           char close, bool print_readably) {
     string_t str = {0};
 
     da_append(&str, open);
@@ -30,19 +30,23 @@ static string_t pr_str_sequence(mal_value_t value, char open, char close,
             da_append(&str, ' ');
         }
 
-        string_t s = pr_str(l->value, print_readably);
-        for (size_t i = 0; i < s.size; i++) {
-            da_append(&str, s.items[i]);
+        mal_value_string_t* s = pr_str(l->value, print_readably);
+        for (size_t i = 0; i < s->size; i++) {
+            da_append(&str, s->chars[i]);
         }
     }
 
     da_append(&str, close);
 
-    return str;
+    mal_value_string_t* s = mal_string_new(str.items, str.size);
+    da_free(&str);
+
+    return s;
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-static string_t pr_str_hashmap(mal_value_t value, bool print_readably) {
+static mal_value_string_t* pr_str_hashmap(mal_value_t value,
+                                          bool        print_readably) {
     mal_value_hashmap_t* hm = value.as.hashmap;
     string_t             str = {0};
 
@@ -59,25 +63,28 @@ static string_t pr_str_hashmap(mal_value_t value, bool print_readably) {
 
         actual_i++;
 
-        string_t s = pr_str(e->key, print_readably);
-        for (size_t i = 0; i < s.size; i++) {
-            da_append(&str, s.items[i]);
+        mal_value_string_t* s = pr_str(e->key, print_readably);
+        for (size_t i = 0; i < s->size; i++) {
+            da_append(&str, s->chars[i]);
         }
 
         da_append(&str, ' ');
 
         s = pr_str(e->value, print_readably);
-        for (size_t i = 0; i < s.size; i++) {
-            da_append(&str, s.items[i]);
+        for (size_t i = 0; i < s->size; i++) {
+            da_append(&str, s->chars[i]);
         }
     }
 
     da_append(&str, '}');
 
-    return str;
+    mal_value_string_t* s = mal_string_new(str.items, str.size);
+    da_free(&str);
+
+    return s;
 }
 
-string_t pr_str(mal_value_t value, bool print_readably) {
+mal_value_string_t* pr_str(mal_value_t value, bool print_readably) {
 // #define DEBUG_PRINT_TYPES
 #ifdef DEBUG_PRINT_TYPES
     switch (value.tag) {
@@ -96,42 +103,41 @@ string_t pr_str(mal_value_t value, bool print_readably) {
 #endif
 
     switch (value.tag) {
-        case MAL_BUILTIN: return string_init_with_cstr("builtin");
-        case MAL_NIL: return string_init_with_cstr("nil");
-        case MAL_TRUE: return string_init_with_cstr("true");
-        case MAL_FALSE: return string_init_with_cstr("false");
+        case MAL_BUILTIN: return mal_string_new_from_cstr("builtin");
+        case MAL_NIL: return mal_string_new_from_cstr("nil");
+        case MAL_TRUE: return mal_string_new_from_cstr("true");
+        case MAL_FALSE: return mal_string_new_from_cstr("false");
         case MAL_NUM: {
             if ((uint32_t)value.as.num == value.as.num) {
-                int   c = snprintf(NULL, 0, "%u", (uint32_t)value.as.num);
-                char* str = tgc_calloc(&gc, c + 1, sizeof(char));
-                snprintf(str, c + 1, "%u", (uint32_t)value.as.num);
+                int c = snprintf(NULL, 0, "%u", (uint32_t)value.as.num);
+                mal_value_string_t* str = mal_string_new_sized(c);
+                snprintf(str->chars, c + 1, "%u", (uint32_t)value.as.num);
 
-                return string_init_with(str, c);
+                str->hash = fnv_1a_hash(str->chars, str->size);
+                return str;
             }
 
-            int   c = snprintf(NULL, 0, "%g", value.as.num);
-            char* str = tgc_calloc(&gc, c + 1, sizeof(char));
-            snprintf(str, c + 1, "%g", value.as.num);
+            int                 c = snprintf(NULL, 0, "%g", value.as.num);
+            mal_value_string_t* str = mal_string_new_sized(c);
+            snprintf(str->chars, c + 1, "%g", value.as.num);
 
-            return string_init_with(str, c);
+            str->hash = fnv_1a_hash(str->chars, str->size);
+            return str;
         } break;
         case MAL_KEYWORD:
-        case MAL_SYMBOL:
-            return string_copy_with(value.as.string->chars,
-                                    value.as.string->size);
+        case MAL_SYMBOL: return value.as.string;
         case MAL_STRING:
             if (print_readably) {
-                return mal_string_unescape_direct(value.as.string);
+                return mal_string_unescape(value.as.string);
             }
 
-            return string_copy_with(value.as.string->chars,
-                                    value.as.string->size);
+            return value.as.string;
         case MAL_VEC: return pr_str_sequence(value, '[', ']', print_readably);
         case MAL_LIST: return pr_str_sequence(value, '(', ')', print_readably);
         case MAL_HASHMAP: return pr_str_hashmap(value, print_readably);
-        case MAL_FN: return string_init_with_cstr("#<function>"); break;
-        case MAL_ERR: return string_init_with_cstr("ERROR"); break;
+        case MAL_FN: return mal_string_new_from_cstr("#<function>"); break;
+        case MAL_ERR: return mal_string_new_from_cstr("ERROR"); break;
     }
 
-    return (string_t){0};
+    assert(false && "Invalid tag in pr_str");
 }

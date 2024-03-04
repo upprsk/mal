@@ -5,4 +5,4 @@
 #include "common.h"
 #include "types.h"
 
-string_t pr_str(mal_value_t value, bool print_readably);
+mal_value_string_t* pr_str(mal_value_t value, bool print_readably);

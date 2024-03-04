@@ -8,7 +8,6 @@
 #include <string.h>
 
 #include "da.h"
-#include "tgc.h"
 #include "types.h"
 
 /// Tokens are just strings...
@@ -269,8 +268,7 @@ static mal_value_t read_vector(reader_t* r) {
 static mal_value_t read_hashmap(reader_t* r) {
     reader_next(r);
 
-    mal_value_hashmap_t* hm = tgc_alloc(&gc, sizeof(mal_value_hashmap_t));
-    *hm = (mal_value_hashmap_t){0};
+    mal_value_hashmap_t* hm = mal_hashmap_new();
 
     while (true) {
         if (reader_at_end(r)) {
@@ -424,7 +422,10 @@ static mal_value_t read_atom(reader_t* r) {
 mal_value_t read_str(string_t s) {
     size_t   err = 0;
     vartok_t tokens = tokenize(s, &err);
-    if (err != 0) return (mal_value_t){.tag = MAL_ERR};
+    if (err != 0) {
+        da_free(&tokens);
+        return (mal_value_t){.tag = MAL_ERR};
+    }
 
     reader_t    reader = {.tokens = tokens};
     mal_value_t value = read_form(&reader);
@@ -433,6 +434,8 @@ mal_value_t read_str(string_t s) {
         token_t tok = reader_peek(&reader);
         fprintf(stderr, "ERROR: expected EOF, found `%.*s`\n", (int)tok.size,
                 tok.items);
+
+        da_free(&tokens);
         return (mal_value_t){.tag = MAL_ERR};
     }
 

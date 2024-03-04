@@ -22,6 +22,6 @@ string_t string_init_with(char* str, size_t length);
 
 /// Create a new string with the given characters and length. Duplicates the
 /// string characters.
-string_t string_copy_with(char* str, size_t length);
+// string_t string_copy_with(char* str, size_t length);
 
 string_t string_init_with_cstr(char* str);
