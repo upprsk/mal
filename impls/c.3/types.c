@@ -218,5 +218,3 @@ bool mal_hashmap_get(mal_value_hashmap_t const* hm, mal_value_t key,
     *value = entry->value;
     return true;
 }
-
-tgc_t gc;

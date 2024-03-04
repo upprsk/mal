@@ -130,6 +130,19 @@ string_t pr_str(mal_value_t value, bool print_readably) {
         case MAL_LIST: return pr_str_sequence(value, '(', ')', print_readably);
         case MAL_HASHMAP: return pr_str_hashmap(value, print_readably);
         case MAL_FN: return string_init_with_cstr("#<function>"); break;
+        case MAL_ATOM: {
+            string_t s = {0};
+
+            string_t atom_prefix = string_init_with_cstr("(atom ");
+            da_concat(&s, &atom_prefix);
+
+            string_t inner = pr_str(value.as.atom->value, print_readably);
+            da_concat(&s, &inner);
+
+            da_append(&s, ')');
+
+            return s;
+        }
         case MAL_ERR: return string_init_with_cstr("ERROR"); break;
     }
 

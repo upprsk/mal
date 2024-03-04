@@ -3,7 +3,6 @@
 #include <stdbool.h>
 
 #include "common.h"
-#include "tgc.h"
 
 // fwd
 typedef struct mal_value         mal_value_t;
@@ -12,6 +11,7 @@ typedef struct mal_value_string  mal_value_string_t;
 typedef struct mal_value_list    mal_value_list_t;
 typedef struct mal_value_hashmap mal_value_hashmap_t;
 typedef struct mal_value_fn      mal_value_fn_t;
+typedef struct mal_value_atom    mal_value_atom_t;
 
 typedef struct env env_t;
 
@@ -40,6 +40,7 @@ typedef enum __attribute__((packed)) mal_value_tag {
     MAL_LIST,     // uses `list`
     MAL_HASHMAP,  // uses `hashmap`
     MAL_FN,       // uses `fn`
+    MAL_ATOM,     // uses `atom`
 } mal_value_tag_t;
 
 /// This is our value struct. It is just a 2 word (16 bytes on 64bit) containing
@@ -53,6 +54,7 @@ struct mal_value {
         mal_value_list_t*    list;
         mal_value_hashmap_t* hashmap;
         mal_value_fn_t*      fn;
+        mal_value_atom_t*    atom;
     } as;
 };
 
@@ -149,5 +151,13 @@ struct mal_value_fn {
 
 // =============================================================================
 
-/// hehe. This is our global garbage collector allocator.
-extern tgc_t gc;
+struct mal_value_atom {
+    mal_value_t value;
+};
+
+// =============================================================================
+
+typedef struct mal_eval_result {
+    mal_value_t value;
+    env_t*      env;
+} mal_eval_result_t;

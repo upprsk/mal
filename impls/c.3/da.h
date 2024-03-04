@@ -96,6 +96,13 @@
 /// literal)
 #define da_append(da, ...) da_append_impl(da, (__VA_ARGS__))
 
+#define da_concat(da, other)                         \
+    do {                                             \
+        for (size_t i = 0; i < (other)->size; i++) { \
+            da_append(da, (other)->items[i]);        \
+        }                                            \
+    } while (0);
+
 /// Forwards to `da_append_fixed_impl`.
 ///
 /// This trick makes so that we can have commas in the value (like a struct

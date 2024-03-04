@@ -104,23 +104,23 @@
         .tag = lhs.as.num op rhs.as.num ? MAL_TRUE : MAL_FALSE           \
     }
 
-mal_value_t builtin_fn_add(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_add(UNUSED env_t* env, mal_value_t args) {
     buintin_fn_min_binary(args, +);
 }
 
-mal_value_t builtin_fn_sub(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_sub(UNUSED env_t* env, mal_value_t args) {
     buintin_fn_min_binary(args, -);
 }
 
-mal_value_t builtin_fn_div(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_div(UNUSED env_t* env, mal_value_t args) {
     buintin_fn_min_binary(args, /);
 }
 
-mal_value_t builtin_fn_mul(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_mul(UNUSED env_t* env, mal_value_t args) {
     buintin_fn_min_binary(args, *);
 }
 
-mal_value_t builtin_fn_prn(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_prn(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
     if (arg == NULL) {
         fprintf(stdout, "\n");
@@ -148,7 +148,7 @@ mal_value_t builtin_fn_prn(UNUSED env_t* env, mal_value_t args) {
     return (mal_value_t){.tag = MAL_NIL};
 }
 
-mal_value_t builtin_fn_println(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_println(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
     if (arg == NULL) {
         fprintf(stdout, "\n");
@@ -176,7 +176,7 @@ mal_value_t builtin_fn_println(UNUSED env_t* env, mal_value_t args) {
     return (mal_value_t){.tag = MAL_NIL};
 }
 
-mal_value_t builtin_fn_pr_str(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_pr_str(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
 
     string_t out = {0};
@@ -198,7 +198,7 @@ mal_value_t builtin_fn_pr_str(UNUSED env_t* env, mal_value_t args) {
     return (mal_value_t){.tag = MAL_STRING, .as.string = str};
 }
 
-mal_value_t builtin_fn_str(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_str(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
 
     string_t out = {0};
@@ -216,7 +216,7 @@ mal_value_t builtin_fn_str(UNUSED env_t* env, mal_value_t args) {
     return (mal_value_t){.tag = MAL_STRING, .as.string = str};
 }
 
-mal_value_t builtin_fn_list(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_list(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_t* out = NULL;
     for (mal_value_list_t* l = args.as.list->next; l != NULL; l = l->next) {
         out = list_append(out, l->value);
@@ -225,7 +225,8 @@ mal_value_t builtin_fn_list(UNUSED env_t* env, mal_value_t args) {
     return (mal_value_t){.tag = MAL_LIST, .as.list = out};
 }
 
-mal_value_t builtin_fn_list_question(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_list_question(UNUSED env_t* env,
+                                            mal_value_t   args) {
     mal_value_list_t* arg = args.as.list->next;
     if (arg == NULL) {
         fprintf(stderr, "ERROR: Missing parameter for 'list?'\n");
@@ -236,7 +237,7 @@ mal_value_t builtin_fn_list_question(UNUSED env_t* env, mal_value_t args) {
                              arg->value.tag == MAL_LIST ? MAL_TRUE : MAL_FALSE};
 }
 
-mal_value_t builtin_fn_empty(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_empty(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
     if (arg == NULL) {
         fprintf(stderr, "ERROR: Missing parameter for 'empty'\n");
@@ -252,7 +253,7 @@ mal_value_t builtin_fn_empty(UNUSED env_t* env, mal_value_t args) {
                              arg->value.as.list == NULL ? MAL_TRUE : MAL_FALSE};
 }
 
-mal_value_t builtin_fn_count(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_count(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
     if (arg == NULL) {
         fprintf(stderr, "ERROR: Missing parameter for 'size'\n");
@@ -325,7 +326,7 @@ static bool mal_values_equals(mal_value_t lhs, mal_value_t rhs) {
     }
 }
 
-mal_value_t builtin_fn_equals(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_equals(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_da_t da = {0};
     list_to_da(args.as.list, &da);
 
@@ -345,26 +346,26 @@ mal_value_t builtin_fn_equals(UNUSED env_t* env, mal_value_t args) {
     return (mal_value_t){.tag = equal ? MAL_TRUE : MAL_FALSE};
 }
 
-mal_value_t builtin_fn_lt(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_lt(UNUSED env_t* env, mal_value_t args) {
     buintin_fn_binary(args, <);
 }
 
-mal_value_t builtin_fn_lte(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_lte(UNUSED env_t* env, mal_value_t args) {
     buintin_fn_binary(args, <=);
 }
 
-mal_value_t builtin_fn_gt(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_gt(UNUSED env_t* env, mal_value_t args) {
     buintin_fn_binary(args, >);
 }
 
-mal_value_t builtin_fn_gte(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_gte(UNUSED env_t* env, mal_value_t args) {
     buintin_fn_binary(args, >=);
 }
 
 #undef buintin_fn_min_binary
 #undef buintin_fn_binary
 
-mal_value_t builtin_fn_read_str(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_read_str(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
     if (arg == NULL) {
         // FIXME: Is this correct?
@@ -382,7 +383,7 @@ mal_value_t builtin_fn_read_str(UNUSED env_t* env, mal_value_t args) {
     return read_str(string_init_with(s->chars, s->size));
 }
 
-mal_value_t builtin_fn_slurp(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_slurp(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
     if (arg == NULL) {
         fprintf(stderr,
@@ -413,7 +414,7 @@ mal_value_t builtin_fn_slurp(UNUSED env_t* env, mal_value_t args) {
 
 extern mal_value_t mal_eval(mal_value_t value, env_t* env);
 
-mal_value_t builtin_fn_eval(env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_eval(env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
     if (arg == NULL) {
         return (mal_value_t){.tag = MAL_NIL};
@@ -423,6 +424,120 @@ mal_value_t builtin_fn_eval(env_t* env, mal_value_t args) {
     while (env->outer) env = env->outer;
 
     return mal_eval(arg->value, env);
+}
+
+static mal_value_t builtin_fn_atom(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_t* arg = args.as.list->next;
+    if (arg == NULL) {
+        fprintf(stderr, "ERROR: Missing parameter for 'atom'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    mal_value_atom_t* atom = tgc_alloc(&gc, sizeof(mal_value_atom_t));
+    *atom = (mal_value_atom_t){.value = arg->value};
+
+    return (mal_value_t){.tag = MAL_ATOM, .as.atom = atom};
+}
+
+static mal_value_t builtin_fn_atom_question(UNUSED env_t* env,
+                                            mal_value_t   args) {
+    mal_value_list_t* arg = args.as.list->next;
+    if (arg == NULL) {
+        fprintf(stderr, "ERROR: Missing parameter for 'atom?'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    return (mal_value_t){.tag =
+                             arg->value.tag == MAL_ATOM ? MAL_TRUE : MAL_FALSE};
+}
+
+static mal_value_t builtin_fn_deref(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_t* arg = args.as.list->next;
+    if (arg == NULL) {
+        fprintf(stderr, "ERROR: Missing parameter for 'deref'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    if (arg->value.tag != MAL_ATOM) {
+        fprintf(stderr,
+                "ERROR: Invalid type for 'deref', expected an atom as "
+                "parameter.\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    return arg->value.as.atom->value;
+}
+
+static mal_value_t builtin_fn_reset(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_t* arg = args.as.list->next;
+    if (arg == NULL) {
+        fprintf(stderr, "ERROR: Missing first parameter for 'reset!'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    if (arg->value.tag != MAL_ATOM) {
+        fprintf(stderr,
+                "ERROR: Invalid type for 'reset!', expected an atom as first "
+                "parameter.\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    mal_value_list_t* new_value = arg->next;
+    if (new_value == NULL) {
+        fprintf(stderr, "ERROR: Missing second parameter for 'reset!'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    arg->value.as.atom->value = new_value->value;
+
+    return arg->value.as.atom->value;
+}
+
+static mal_value_t builtin_fn_swap(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_t* arg = args.as.list->next;
+    if (arg == NULL) {
+        fprintf(stderr, "ERROR: Missing first parameter for 'swap!'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    if (arg->value.tag != MAL_ATOM) {
+        fprintf(stderr,
+                "ERROR: Invalid type for 'swap!', expected an atom as first "
+                "parameter.\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    mal_value_list_t* fn = arg->next;
+    if (fn == NULL) {
+        fprintf(stderr, "ERROR: Missing second parameter for 'swap!'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    if (fn->value.tag != MAL_FN && fn->value.tag != MAL_BUILTIN) {
+        fprintf(stderr,
+                "ERROR: Invalid type for 'swap!', expected a function as "
+                "second parameter.\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    mal_value_list_t* fn_args = NULL;
+    fn_args = list_append(fn_args, arg->value.as.atom->value);
+    fn_args->next = fn->next;
+
+    if (fn->value.tag == MAL_FN) {
+        extern mal_eval_result_t mal_eval_apply(
+            mal_value_t fn_value, mal_value_list_t * args, env_t * env);
+        mal_eval_result_t r = mal_eval_apply(fn->value, fn_args, env);
+
+        arg->value.as.atom->value = mal_eval(r.value, r.env);
+    } else {
+        arg->value.as.atom->value = fn->value.as.builtin.impl(
+            env, (mal_value_t){.tag = MAL_LIST,
+                               .as.list = list_prepend(
+                                   fn_args, (mal_value_t){.tag = MAL_NIL})});
+    }
+
+    return arg->value.as.atom->value;
 }
 
 void core_env_populate(env_t* env) {
@@ -449,6 +564,11 @@ void core_env_populate(env_t* env) {
         [17] = SYMBOL("read-string"),  //
         [18] = SYMBOL("slurp"),        //
         [19] = SYMBOL("eval"),         //
+        [20] = SYMBOL("atom"),         //
+        [21] = SYMBOL("atom?"),        //
+        [22] = SYMBOL("deref"),        //
+        [23] = SYMBOL("reset!"),       //
+        [24] = SYMBOL("swap!"),        //
     };
 #undef SYMBOL
 
@@ -458,26 +578,31 @@ void core_env_populate(env_t* env) {
     }
 
     mal_value_t values[] = {
-        [0] = BUILTIN(add),            //
-        [1] = BUILTIN(sub),            //
-        [2] = BUILTIN(mul),            //
-        [3] = BUILTIN(div),            //
-        [4] = BUILTIN(pr_str),         //
-        [5] = BUILTIN(str),            //
-        [6] = BUILTIN(prn),            //
-        [7] = BUILTIN(println),        //
-        [8] = BUILTIN(list),           //
-        [9] = BUILTIN(list_question),  //
-        [10] = BUILTIN(empty),         //
-        [11] = BUILTIN(count),         //
-        [12] = BUILTIN(equals),        //
-        [13] = BUILTIN(lt),            //
-        [14] = BUILTIN(lte),           //
-        [15] = BUILTIN(gt),            //
-        [16] = BUILTIN(gte),           //
-        [17] = BUILTIN(read_str),      //
-        [18] = BUILTIN(slurp),         //
-        [19] = BUILTIN(eval),          //
+        [0] = BUILTIN(add),             //
+        [1] = BUILTIN(sub),             //
+        [2] = BUILTIN(mul),             //
+        [3] = BUILTIN(div),             //
+        [4] = BUILTIN(pr_str),          //
+        [5] = BUILTIN(str),             //
+        [6] = BUILTIN(prn),             //
+        [7] = BUILTIN(println),         //
+        [8] = BUILTIN(list),            //
+        [9] = BUILTIN(list_question),   //
+        [10] = BUILTIN(empty),          //
+        [11] = BUILTIN(count),          //
+        [12] = BUILTIN(equals),         //
+        [13] = BUILTIN(lt),             //
+        [14] = BUILTIN(lte),            //
+        [15] = BUILTIN(gt),             //
+        [16] = BUILTIN(gte),            //
+        [17] = BUILTIN(read_str),       //
+        [18] = BUILTIN(slurp),          //
+        [19] = BUILTIN(eval),           //
+        [20] = BUILTIN(atom),           //
+        [21] = BUILTIN(atom_question),  //
+        [22] = BUILTIN(deref),          //
+        [23] = BUILTIN(reset),          //
+        [24] = BUILTIN(swap),           //
     };
 #undef BUILTIN
 
