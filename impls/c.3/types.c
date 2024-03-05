@@ -63,6 +63,17 @@ void gc_add_obj(mal_value_tag_t tag, gc_obj_t* obj) {
 
 // =============================================================================
 
+bool is_macro_call(mal_value_t value, env_t* env) {
+    if (value.tag != MAL_LIST || value.as.list == NULL) return false;
+
+    mal_value_t v = {0};
+    if (!env_get(env, value.as.list->value, &v)) return false;
+
+    return v.tag == MAL_FN && v.as.fn->is_macro;
+}
+
+// =============================================================================
+
 bool mal_string_equal_cstr(mal_value_string_t* s, char const* cstr) {
     size_t len = strlen(cstr);
 
@@ -307,10 +318,12 @@ bool mal_hashmap_get(mal_value_hashmap_t const* hm, mal_value_t key,
     return true;
 }
 
-mal_value_fn_t* mal_fn_new(bool is_variadic, mal_value_list_da_t binds,
-                           mal_value_t body, env_t* outer_env) {
+mal_value_fn_t* mal_fn_new(bool is_variadic, bool is_macro,
+                           mal_value_list_da_t binds, mal_value_t body,
+                           env_t* outer_env) {
     mal_value_fn_t* fn = gc_alloc(sizeof(mal_value_fn_t));
     *fn = (mal_value_fn_t){.is_variadic = is_variadic,
+                           .is_macro = is_macro,
                            .binds = binds,
                            .outer_env = outer_env,
                            .body = body};

@@ -515,7 +515,7 @@ static mal_value_t builtin_fn_reset(UNUSED env_t* env, mal_value_t args) {
     return arg->value.as.atom->value;
 }
 
-static mal_value_t builtin_fn_swap(UNUSED env_t* env, mal_value_t args) {
+static mal_value_t builtin_fn_swap(env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
     if (arg == NULL) {
         fprintf(stderr, "ERROR: Missing first parameter for 'swap!'\n");

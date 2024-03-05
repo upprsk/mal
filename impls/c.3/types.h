@@ -68,6 +68,8 @@ static inline bool is_valid_hashmap_key(mal_value_t value) {
            value.tag == MAL_STRING;
 }
 
+bool is_macro_call(mal_value_t value, env_t* env);
+
 // =============================================================================
 
 typedef enum __attribute__((packed)) gc_mark {
@@ -186,14 +188,17 @@ struct mal_value_fn {
     gc_obj_t obj;
 
     bool is_variadic;
+    bool is_macro;
 
     mal_value_list_da_t binds;
     mal_value_t         body;
     env_t*              outer_env;
 };
 
-mal_value_fn_t* mal_fn_new(bool is_variadic, mal_value_list_da_t binds,
-                           mal_value_t body, env_t* outer_env);
+mal_value_fn_t* mal_fn_new(bool is_variadic, bool is_macro,
+                           mal_value_list_da_t binds, mal_value_t body,
+                           env_t* outer_env);
+
 // =============================================================================
 
 struct mal_value_atom {
