@@ -706,87 +706,65 @@ static mal_value_t builtin_fn_rest(UNUSED env_t* env, mal_value_t args) {
 }
 
 void core_env_populate(env_t* env) {
-#define SYMBOL(s) {.tag = MAL_SYMBOL, .as.string = mal_string_new_from_cstr(s)}
-
-    mal_value_t keys[] = {
-        [0] = SYMBOL("+"),             //
-        [1] = SYMBOL("-"),             //
-        [2] = SYMBOL("*"),             //
-        [3] = SYMBOL("/"),             //
-        [4] = SYMBOL("pr-str"),        //
-        [5] = SYMBOL("str"),           //
-        [6] = SYMBOL("prn"),           //
-        [7] = SYMBOL("println"),       //
-        [8] = SYMBOL("list"),          //
-        [9] = SYMBOL("list?"),         //
-        [10] = SYMBOL("empty?"),       //
-        [11] = SYMBOL("count"),        //
-        [12] = SYMBOL("="),            //
-        [13] = SYMBOL("<"),            //
-        [14] = SYMBOL("<="),           //
-        [15] = SYMBOL(">"),            //
-        [16] = SYMBOL(">="),           //
-        [17] = SYMBOL("read-string"),  //
-        [18] = SYMBOL("slurp"),        //
-        [19] = SYMBOL("eval"),         //
-        [20] = SYMBOL("atom"),         //
-        [21] = SYMBOL("atom?"),        //
-        [22] = SYMBOL("deref"),        //
-        [23] = SYMBOL("reset!"),       //
-        [24] = SYMBOL("swap!"),        //
-        [25] = SYMBOL("cons"),         //
-        [26] = SYMBOL("concat"),       //
-        [27] = SYMBOL("vec"),          //
-        [28] = SYMBOL("nth"),          //
-        [29] = SYMBOL("first"),        //
-        [30] = SYMBOL("rest"),         //
-    };
-#undef SYMBOL
+#define SYMBOL(s) \
+    { .tag = MAL_SYMBOL, .as.string = mal_string_new_from_cstr(s) }
 
 #define BUILTIN(f)                                                  \
     {                                                               \
         .tag = MAL_BUILTIN, .as.builtin = {.impl = builtin_fn_##f } \
     }
 
-    mal_value_t values[] = {
-        [0] = BUILTIN(add),             //
-        [1] = BUILTIN(sub),             //
-        [2] = BUILTIN(mul),             //
-        [3] = BUILTIN(div),             //
-        [4] = BUILTIN(pr_str),          //
-        [5] = BUILTIN(str),             //
-        [6] = BUILTIN(prn),             //
-        [7] = BUILTIN(println),         //
-        [8] = BUILTIN(list),            //
-        [9] = BUILTIN(list_question),   //
-        [10] = BUILTIN(empty),          //
-        [11] = BUILTIN(count),          //
-        [12] = BUILTIN(equals),         //
-        [13] = BUILTIN(lt),             //
-        [14] = BUILTIN(lte),            //
-        [15] = BUILTIN(gt),             //
-        [16] = BUILTIN(gte),            //
-        [17] = BUILTIN(read_str),       //
-        [18] = BUILTIN(slurp),          //
-        [19] = BUILTIN(eval),           //
-        [20] = BUILTIN(atom),           //
-        [21] = BUILTIN(atom_question),  //
-        [22] = BUILTIN(deref),          //
-        [23] = BUILTIN(reset),          //
-        [24] = BUILTIN(swap),           //
-        [25] = BUILTIN(cons),           //
-        [26] = BUILTIN(concat),         //
-        [27] = BUILTIN(vec),            //
-        [28] = BUILTIN(nth),            //
-        [29] = BUILTIN(first),          //
-        [30] = BUILTIN(rest),           //
+#define PAIR(s, f) \
+    { .key = SYMBOL(s), .value = BUILTIN(f) }
+
+    typedef struct pair {
+        mal_value_t key;
+        mal_value_t value;
+    } pair_t;
+
+    pair_t core_pairs[] = {
+        PAIR("+", add),     //
+        PAIR("-", sub),     //
+        PAIR("*", mul),     //
+        PAIR("/", div),     //
+        PAIR("=", equals),  //
+        PAIR("<", lt),      //
+        PAIR("<=", lte),    //
+        PAIR(">", gt),      //
+        PAIR(">=", gte),    //
+
+        PAIR("count", count),    //
+        PAIR("empty?", empty),   //
+        PAIR("cons", cons),      //
+        PAIR("concat", concat),  //
+        PAIR("vec", vec),        //
+        PAIR("nth", nth),        //
+        PAIR("first", first),    //
+        PAIR("rest", rest),      //
+
+        PAIR("pr-str", pr_str),        //
+        PAIR("str", str),              //
+        PAIR("prn", prn),              //
+        PAIR("println", println),      //
+        PAIR("list", list),            //
+        PAIR("list?", list_question),  //
+
+        PAIR("read-string", read_str),  //
+        PAIR("slurp", slurp),           //
+        PAIR("eval", eval),             //
+
+        PAIR("atom", atom),            //
+        PAIR("atom?", atom_question),  //
+        PAIR("deref", deref),          //
+        PAIR("reset!", reset),         //
+        PAIR("swap!", swap),           //
     };
+
+#undef SYMBOL
 #undef BUILTIN
+#undef PAIR
 
-    static_assert(sizeof(keys) == sizeof(values),
-                  "keys and values should have same size");
-
-    for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
-        env_set(env, keys[i], values[i]);
+    for (size_t i = 0; i < sizeof(core_pairs) / sizeof(core_pairs[0]); i++) {
+        env_set(env, core_pairs[i].key, core_pairs[i].value);
     }
 }
