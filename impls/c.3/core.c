@@ -388,10 +388,7 @@ static mal_value_t builtin_fn_gte(UNUSED env_t* env, mal_value_t args) {
 
 static mal_value_t builtin_fn_read_str(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_t* arg = args.as.list->next;
-    if (arg == NULL) {
-        // FIXME: Is this correct?
-        return (mal_value_t){.tag = MAL_NIL};
-    }
+    if (arg == NULL) return (mal_value_t){.tag = MAL_NIL};
 
     if (arg->value.tag != MAL_STRING) {
         fprintf(stderr,
@@ -564,12 +561,11 @@ static mal_value_t builtin_fn_swap(env_t* env, mal_value_t args) {
 
 static mal_value_t builtin_fn_cons(UNUSED env_t* env, mal_value_t args) {
     mal_value_list_da_t da = {0};
-    list_to_da((args).as.list, &da);
+    list_to_da(args.as.list, &da);
 
-    if (da.size < 3) {
+    if (da.size != 3) {
         fprintf(stderr,
-                "ERROR: Invalid size for 'cons', expected sequence of 2 or 3, "
-                "found "
+                "ERROR: Invalid size for 'cons', expected sequence of 3, found "
                 "%zu\n",
                 da.size);
         da_free(&da);
@@ -613,6 +609,102 @@ static mal_value_t builtin_fn_concat(UNUSED env_t* env, mal_value_t args) {
     return v;
 }
 
+static mal_value_t builtin_fn_nth(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_da_t da = {0};
+    list_to_da(args.as.list, &da);
+
+    if (da.size != 3) {
+        fprintf(stderr,
+                "ERROR: Invalid size for 'nth', expected sequence of 3, found "
+                "%zu\n",
+                da.size);
+        da_free(&da);
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    if (da.items[1].tag != MAL_LIST && da.items[1].tag != MAL_VEC) {
+        fprintf(stderr,
+                "ERROR: Invalid type for 'nth', expected a list or vec as "
+                "first parameter.\n");
+        da_free(&da);
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    if (da.items[2].tag != MAL_NUM) {
+        fprintf(stderr,
+                "ERROR: Invalid type for 'nth', expected a number as second "
+                "parameter.\n");
+        da_free(&da);
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    size_t      nth = (size_t)da.items[2].as.num;
+    mal_value_t v = {.tag = MAL_ERR};
+
+    size_t i = 0;
+    for (mal_value_list_t* l = da.items[1].as.list; l != NULL; l = l->next) {
+        if (i == nth) {
+            v = l->value;
+            break;
+        }
+
+        i++;
+    }
+
+    if (v.tag == MAL_ERR) {
+        // FIXME: Actal exceptions
+        fprintf(stderr, "EXCEPTION: Index %zu out of bounds for size %zu\n",
+                nth, i);
+        da_free(&da);
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    da_free(&da);
+    return v;
+}
+
+static mal_value_t builtin_fn_first(UNUSED env_t* env, mal_value_t args) {
+    if (args.as.list->next == NULL) {
+        fprintf(stderr, "ERROR: Missing parameter for 'first'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    mal_value_t lst = args.as.list->next->value;
+    if (lst.tag == MAL_NIL) return lst;
+
+    if (lst.tag != MAL_LIST && lst.tag != MAL_VEC) {
+        fprintf(stderr,
+                "ERROR: Invalid type for 'first', expected a list or vec as "
+                "first parameter.\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    if (lst.as.list == NULL) return (mal_value_t){.tag = MAL_NIL};
+
+    return lst.as.list->value;
+}
+
+static mal_value_t builtin_fn_rest(UNUSED env_t* env, mal_value_t args) {
+    if (args.as.list->next == NULL) {
+        fprintf(stderr, "ERROR: Missing parameter for 'rest'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    mal_value_t lst = args.as.list->next->value;
+    if (lst.tag == MAL_NIL) return (mal_value_t){.tag = MAL_LIST};
+
+    if (lst.tag != MAL_LIST && lst.tag != MAL_VEC) {
+        fprintf(stderr,
+                "ERROR: Invalid type for 'rest', expected a list or vec as "
+                "first parameter.\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    if (lst.as.list == NULL) return (mal_value_t){.tag = MAL_LIST};
+
+    return (mal_value_t){.tag = MAL_LIST, .as.list = lst.as.list->next};
+}
+
 void core_env_populate(env_t* env) {
 #define SYMBOL(s) {.tag = MAL_SYMBOL, .as.string = mal_string_new_from_cstr(s)}
 
@@ -645,6 +737,9 @@ void core_env_populate(env_t* env) {
         [25] = SYMBOL("cons"),         //
         [26] = SYMBOL("concat"),       //
         [27] = SYMBOL("vec"),          //
+        [28] = SYMBOL("nth"),          //
+        [29] = SYMBOL("first"),        //
+        [30] = SYMBOL("rest"),         //
     };
 #undef SYMBOL
 
@@ -682,6 +777,9 @@ void core_env_populate(env_t* env) {
         [25] = BUILTIN(cons),           //
         [26] = BUILTIN(concat),         //
         [27] = BUILTIN(vec),            //
+        [28] = BUILTIN(nth),            //
+        [29] = BUILTIN(first),          //
+        [30] = BUILTIN(rest),           //
     };
 #undef BUILTIN
 

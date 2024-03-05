@@ -529,7 +529,6 @@ mal_value_t mal_eval(mal_value_t value, env_t* env) {
         }
 
         if (mal_value_equal_cstr(fn, "macroexpand")) {
-            fprintf(stderr, "macroexpand\n");
             if (value.as.list->next == NULL) {
                 fprintf(stderr, "ERROR: Missing argument for 'macroexpand'\n");
                 return (mal_value_t){.tag = MAL_ERR};
@@ -559,50 +558,6 @@ mal_value_string_t* mal_rep(string_t s, env_t* env) {
     if (val.tag == MAL_ERR) return NULL;
 
     return mal_print(val);
-}
-
-int actual_main(void) {
-    env_t env = {0};
-
-    core_env_populate(&env);
-
-    {
-        static char const not_src[] = "(def! not (fn* (a) (if a false true)))";
-
-        mal_value_t r =
-            mal_eval(mal_read(string_init_with_cstr((char*)not_src)), &env);
-        assert(r.tag != MAL_ERR);
-    }
-
-    {
-        static char const not_src[] =
-            "(def! load-file"
-            "    (fn* (f) (eval (read-string"
-            "        (str \"(do \" (slurp f) \"\nnil)\")))))";
-
-        mal_value_t r =
-            mal_eval(mal_read(string_init_with_cstr((char*)not_src)), &env);
-        assert(r.tag != MAL_ERR);
-    }
-
-    while (true) {
-        fprintf(stdout, "user> ");
-        fflush(stdout);
-
-        static char buf[1024] = {0};
-        ssize_t     n = read(STDIN_FILENO, buf, sizeof(buf));
-        if (n <= 0) break;
-
-        string_t line = da_init_fixed(buf, n - 1);
-
-        mal_value_string_t* result = mal_rep(line, &env);
-        if (result && result->size > 0) printf("%s\n", result->chars);
-    }
-
-    // :)
-    free(env.data.entries);
-
-    return 0;
 }
 
 int main(UNUSED int argc, UNUSED char** argv) {
@@ -642,6 +597,16 @@ int main(UNUSED int argc, UNUSED char** argv) {
             "    (fn* (f) (eval (read-string"
             "        (str \"(do \" (slurp f) \"\nnil)\")))))";
 
+        mal_value_t r =
+            mal_eval(mal_read(string_init_with_cstr((char*)not_src)), &env);
+        assert(r.tag != MAL_ERR);
+    }
+
+    {
+        static char const not_src[] =
+            "(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first "
+            "xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms "
+            "to cond\")) (cons 'cond (rest (rest xs)))))))";
         mal_value_t r =
             mal_eval(mal_read(string_init_with_cstr((char*)not_src)), &env);
         assert(r.tag != MAL_ERR);
