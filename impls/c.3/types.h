@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdarg.h>
 #include <stdbool.h>
 
 #include "common.h"
@@ -27,21 +28,22 @@ struct mal_value_builtin {
 /// use. Some values do not map to any value in the union (like `nil`, `true`
 /// and `false`).
 typedef enum __attribute__((packed)) mal_value_tag {
-    MAL_ERR,      // no storage
-    MAL_BUILTIN,  // uses `builtin`
-    MAL_NIL,      // no storage
-    MAL_TRUE,     // no storage
-    MAL_FALSE,    // no storage
-    MAL_NUM,      // uses `num`
-    MAL_KEYWORD,  // uses `string`
-    MAL_SYMBOL,   // uses `string`
-    MAL_STRING,   // uses `string`
-    MAL_VEC,      // uses `list`
-    MAL_LIST,     // uses `list`
-    MAL_HASHMAP,  // uses `hashmap`
-    MAL_ENV,      // IS NOT A `mal_value`! But used by GC
-    MAL_FN,       // uses `fn`
-    MAL_ATOM,     // uses `atom`
+    MAL_ERR,        // no storage
+    MAL_BUILTIN,    // uses `builtin`
+    MAL_NIL,        // no storage
+    MAL_TRUE,       // no storage
+    MAL_FALSE,      // no storage
+    MAL_NUM,        // uses `num`
+    MAL_KEYWORD,    // uses `string`
+    MAL_SYMBOL,     // uses `string`
+    MAL_STRING,     // uses `string`
+    MAL_VEC,        // uses `list`
+    MAL_LIST,       // uses `list`
+    MAL_HASHMAP,    // uses `hashmap`
+    MAL_ENV,        // IS NOT A `mal_value`! But used by GC
+    MAL_FN,         // uses `fn`
+    MAL_ATOM,       // uses `atom`
+    MAL_EXCEPTION,  // uses `atom`
 } mal_value_tag_t;
 
 /// This is our value struct. It is just a 2 word (16 bytes on 64bit) containing
@@ -58,6 +60,10 @@ struct mal_value {
         mal_value_atom_t*    atom;
     } as;
 };
+
+static inline bool is_error(mal_value_t value) {
+    return value.tag == MAL_ERR || value.tag == MAL_EXCEPTION;
+}
 
 static inline bool is_valid_sequence(mal_value_t value) {
     return value.tag == MAL_LIST || value.tag == MAL_VEC;
@@ -214,3 +220,12 @@ typedef struct mal_eval_result {
     mal_value_t value;
     env_t*      env;
 } mal_eval_result_t;
+
+// =============================================================================
+
+mal_value_atom_t* mal_exception_new(mal_value_t value);
+
+mal_value_atom_t* mal_exception_newvfmt(char const* fmt, va_list args);
+
+mal_value_atom_t* __attribute__((format(printf, 1, 2)))
+mal_exception_newfmt(char const* fmt, ...);

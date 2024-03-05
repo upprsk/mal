@@ -1,8 +1,10 @@
 #include "types.h"
 
 #include <assert.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -32,7 +34,8 @@ void gc_deinit() {
             case MAL_STRING:
             case MAL_VEC:
             case MAL_LIST:
-            case MAL_ATOM: break;
+            case MAL_ATOM:
+            case MAL_EXCEPTION: break;
             case MAL_HASHMAP: {
                 mal_value_hashmap_t* hm = (mal_value_hashmap_t*)obj;
                 free(hm->entries);
@@ -339,5 +342,36 @@ mal_value_atom_t* mal_atom_new(mal_value_t value) {
 
     gc_add_obj(MAL_ATOM, &atom->obj);
 
+    return atom;
+}
+
+mal_value_atom_t* mal_exception_new(mal_value_t value) {
+    mal_value_atom_t* exp = gc_alloc(sizeof(mal_value_atom_t));
+    *exp = (mal_value_atom_t){.value = value};
+
+    gc_add_obj(MAL_EXCEPTION, &exp->obj);
+
+    return exp;
+}
+
+mal_value_atom_t* mal_exception_newvfmt(char const* fmt, va_list args) {
+    va_list args2;
+    va_copy(args2, args);
+
+    int                 c = vsnprintf(NULL, 0, fmt, args2);
+    mal_value_string_t* str = mal_string_new_sized(c);
+    vsnprintf(str->chars, c + 1, fmt, args);
+
+    return mal_exception_new(
+        (mal_value_t){.tag = MAL_STRING, .as.string = str});
+}
+
+mal_value_atom_t* mal_exception_newfmt(char const* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    mal_value_atom_t* atom = mal_exception_newvfmt(fmt, args);
+
+    va_end(args);
     return atom;
 }

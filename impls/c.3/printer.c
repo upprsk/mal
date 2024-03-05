@@ -152,6 +152,7 @@ mal_value_string_t* pr_str(mal_value_t value, bool print_readably) {
 
             return mal_string_new(s.items, s.size);
         }
+        case MAL_EXCEPTION: return mal_string_new_from_cstr("EXCEPTION"); break;
         case MAL_ERR: return mal_string_new_from_cstr("ERROR"); break;
         case MAL_ENV: assert(false && "Invalid tag in pr_str: env");
     }
