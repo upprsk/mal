@@ -627,7 +627,10 @@ mal_value_t mal_eval(mal_value_t value, env_t* env) {
 mal_value_string_t* mal_print(mal_value_t value) { return pr_str(value, true); }
 
 mal_value_string_t* mal_rep(string_t s, env_t* env, mal_value_t* exception) {
-    mal_value_t val = mal_eval(mal_read(s), env);
+    mal_value_t r = mal_read(s);
+    if (is_error(r)) return NULL;
+
+    mal_value_t val = mal_eval(r, env);
     if (is_error(val)) {
         if (val.tag == MAL_EXCEPTION && exception != NULL) {
             *exception = val.as.atom->value;
@@ -660,6 +663,13 @@ int main(UNUSED int argc, UNUSED char** argv) {
                 (mal_value_t){.tag = MAL_LIST, .as.list = argv_lst});
     }
 
+    env_set(
+        &env,
+        (mal_value_t){.tag = MAL_SYMBOL,
+                      .as.string = mal_string_new_from_cstr("*host-language*")},
+        (mal_value_t){.tag = MAL_STRING,
+                      .as.string = mal_string_new_from_cstr("c.3")});
+
     core_env_populate(&env);
 
     {
@@ -691,6 +701,27 @@ int main(UNUSED int argc, UNUSED char** argv) {
         assert(!is_error(r));
     }
 
+    {
+        static char const fmt[] =
+            "(def! %s (fn* [& args] (throw \"NOT IMPLEMENTED\")))";
+
+        static char const* keys[] = {"time-ms", "meta", "with-meta",
+                                     "seq",     "and",  "conj"};
+
+        for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
+            int n = snprintf(NULL, 0, fmt, keys[i]);
+
+            char* str = calloc(n + 1, sizeof(char));
+            snprintf(str, n + 1, fmt, keys[i]);
+
+            mal_value_t r =
+                mal_eval(mal_read(string_init_with_cstr(str)), &env);
+            assert(!is_error(r));
+
+            free(str);
+        }
+    }
+
     if (argc > 1) {
         mal_value_string_t* filename = mal_string_new_from_cstr(argv[1]);
 
@@ -708,6 +739,14 @@ int main(UNUSED int argc, UNUSED char** argv) {
             printf("Uncaught exception: %s\n", s->chars);
         }
     } else {
+        {
+            static char const not_src[] =
+                "(println (str \"Mal [\" *host-language* \"]\"))";
+            mal_value_t r =
+                mal_eval(mal_read(string_init_with_cstr((char*)not_src)), &env);
+            assert(!is_error(r));
+        }
+
         linenoiseSetMultiLine(1);
 
         while (true) {

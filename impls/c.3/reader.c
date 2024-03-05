@@ -429,6 +429,10 @@ mal_value_t read_str(string_t s) {
 
     reader_t    reader = {.tokens = tokens};
     mal_value_t value = read_form(&reader);
+    if (value.tag == MAL_ERR) {
+        da_free(&tokens);
+        return value;
+    }
 
     if (!reader_at_end(&reader)) {
         token_t tok = reader_peek(&reader);

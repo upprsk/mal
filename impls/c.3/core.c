@@ -8,6 +8,7 @@
 
 #include "da.h"
 #include "env.h"
+#include "linenoise.h"
 #include "printer.h"
 #include "reader.h"
 #include "types.h"
@@ -572,6 +573,8 @@ builtin_fn_question(nil, MAL_NIL);
 builtin_fn_question(true, MAL_TRUE);
 builtin_fn_question(false, MAL_FALSE);
 builtin_fn_question(symbol, MAL_SYMBOL);
+builtin_fn_question(string, MAL_STRING);
+builtin_fn_question(number, MAL_NUM);
 builtin_fn_question(keyword, MAL_KEYWORD);
 builtin_fn_question(vector, MAL_VEC);
 builtin_fn_question(map, MAL_HASHMAP);
@@ -588,6 +591,37 @@ static mal_value_t builtin_fn_sequential_question(UNUSED env_t* env,
     }
     return (mal_value_t){
         .tag = (arg->value.tag == MAL_LIST || arg->value.tag == MAL_VEC)
+                   ? MAL_TRUE
+                   : MAL_FALSE};
+};
+
+static mal_value_t builtin_fn_fn_question(UNUSED env_t* env, mal_value_t args) {
+    mal_value_list_t* arg = args.as.list->next;
+    if (arg == NULL) {
+        fprintf(stderr,
+                "ERROR: Missing parameter for '"
+                "fn"
+                "?'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+    return (mal_value_t){
+        .tag = (arg->value.tag == MAL_FN || arg->value.tag == MAL_BUILTIN)
+                   ? MAL_TRUE
+                   : MAL_FALSE};
+};
+
+static mal_value_t builtin_fn_macro_question(UNUSED env_t* env,
+                                             mal_value_t   args) {
+    mal_value_list_t* arg = args.as.list->next;
+    if (arg == NULL) {
+        fprintf(stderr,
+                "ERROR: Missing parameter for '"
+                "macro"
+                "?'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+    return (mal_value_t){
+        .tag = (arg->value.tag == MAL_FN && arg->value.as.fn->is_macro)
                    ? MAL_TRUE
                    : MAL_FALSE};
 };
@@ -675,7 +709,22 @@ static bool mal_values_equals(mal_value_t lhs, mal_value_t rhs) {
 
             return true;
         }
-        case MAL_HASHMAP: assert(false && "Not implemented");
+        case MAL_HASHMAP: {
+            if (lhs.as.hashmap->size != rhs.as.hashmap->size) return false;
+
+            for (size_t i = 0; i < lhs.as.hashmap->capacity; i++) {
+                mal_hashmap_entry_t* e = &lhs.as.hashmap->entries[i];
+
+                if (e->key.as.string == NULL) continue;
+
+                mal_value_t v = {0};
+                if (!mal_hashmap_get(rhs.as.hashmap, e->key, &v)) return false;
+
+                if (!mal_values_equals(e->value, v)) return false;
+            }
+
+            return true;
+        }
         case MAL_FN: return lhs.as.fn == rhs.as.fn;
         default: assert(false && "This should not happen");
     }
@@ -732,7 +781,15 @@ static mal_value_t builtin_fn_read_str(UNUSED env_t* env, mal_value_t args) {
     }
 
     mal_value_string_t* s = arg->value.as.string;
-    return read_str(string_init_with(s->chars, s->size));
+
+    mal_value_t v = read_str(string_init_with(s->chars, s->size));
+    if (v.tag == MAL_ERR) {
+        return (mal_value_t){
+            .tag = MAL_EXCEPTION,
+            .as.atom = mal_exception_newfmt("read-str failed")};
+    }
+
+    return v;
 }
 
 static mal_value_t builtin_fn_slurp(UNUSED env_t* env, mal_value_t args) {
@@ -886,6 +943,8 @@ static mal_value_t builtin_fn_swap(env_t* env, mal_value_t args) {
 
         arg->value.as.atom->value = v;
     } else if (fn->value.tag == MAL_BUILTIN) {
+        fn_args = list_prepend(fn_args, fn->value);
+
         mal_value_t v = fn->value.as.builtin.impl(
             env, (mal_value_t){.tag = MAL_LIST, .as.list = fn_args});
         if (is_error(v)) return v;
@@ -1164,6 +1223,31 @@ static mal_value_t builtin_fn_map(UNUSED env_t* env, mal_value_t args) {
     return (mal_value_t){.tag = MAL_LIST, .as.list = list_reverse(out)};
 }
 
+static mal_value_t builtin_fn_readline(UNUSED env_t* env, mal_value_t args) {
+    if (args.as.list->next == NULL) {
+        fprintf(stderr, "ERROR: Missing parameter for 'readline'\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    mal_value_t promptv = args.as.list->next->value;
+    if (promptv.tag != MAL_STRING) {
+        fprintf(stderr,
+                "ERROR: Invalid type for 'readline', expected a string as "
+                "parameter.\n");
+        return (mal_value_t){.tag = MAL_ERR};
+    }
+
+    mal_value_string_t* prompt = promptv.as.string;
+
+    char* buf = linenoise(prompt->chars);
+    if (buf == NULL) return (mal_value_t){.tag = MAL_NIL};
+
+    mal_value_string_t* input = mal_string_new_from_cstr(buf);
+    linenoiseFree(buf);
+
+    return (mal_value_t){.tag = MAL_STRING, .as.string = input};
+}
+
 void core_env_populate(env_t* env) {
 #define SYMBOL(s) \
     { .tag = MAL_SYMBOL, .as.string = mal_string_new_from_cstr(s) }
@@ -1223,12 +1307,16 @@ void core_env_populate(env_t* env) {
         PAIR("nil?", nil_question),          //
         PAIR("true?", true_question),        //
         PAIR("false?", false_question),      //
+        PAIR("string?", string_question),    //
+        PAIR("number?", number_question),    //
         PAIR("symbol?", symbol_question),    //
         PAIR("keyword?", keyword_question),  //
         PAIR("vector?", vector_question),    //
         PAIR("map?", map_question),          //
 
         PAIR("sequential?", sequential_question),  //
+        PAIR("fn?", fn_question),                  //
+        PAIR("macro?", macro_question),            //
 
         PAIR("read-string", read_str),  //
         PAIR("slurp", slurp),           //
@@ -1243,6 +1331,8 @@ void core_env_populate(env_t* env) {
         PAIR("throw", throw),  //
         PAIR("apply", apply),  //
         PAIR("map", map),      //
+
+        PAIR("readline", readline),  //
     };
 
 #undef SYMBOL
